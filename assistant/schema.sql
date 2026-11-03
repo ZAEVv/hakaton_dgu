@@ -19,6 +19,12 @@ CREATE TABLE IF NOT EXISTS employees (
     name TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS employee_sessions (
+    token_hash TEXT PRIMARY KEY,
+    employee_id INTEGER NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE TABLE IF NOT EXISTS tickets (
     id INTEGER PRIMARY KEY,
     description TEXT NOT NULL,
@@ -26,7 +32,8 @@ CREATE TABLE IF NOT EXISTS tickets (
     room_id INTEGER NOT NULL REFERENCES rooms(id),
     status TEXT NOT NULL DEFAULT 'Новая',
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    assignee_id INTEGER REFERENCES employees(id)
+    assignee_id INTEGER REFERENCES employees(id),
+    version INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS ticket_history (

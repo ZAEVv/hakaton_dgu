@@ -16,6 +16,7 @@
     {% if not rooms %}<p class="error" role="alert">Нет доступных помещений. Обратитесь к сотруднику колледжа.</p>{% endif %}
     <p class="form-note">Все поля обязательны, кроме фотографии.</p>
     <form method="post" enctype="multipart/form-data" id="ticket-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <input type="hidden" name="request_key" value="{{ request_key }}">
       <fieldset>
         <legend>Где возникла проблема</legend>
