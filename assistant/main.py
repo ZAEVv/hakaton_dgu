@@ -1,13 +1,16 @@
 import os
+import hashlib
 import secrets
 import sqlite3
 import uuid
 from io import BytesIO
 from pathlib import Path
 
-from flask import Flask, abort, g, redirect, render_template, request, url_for
+from flask import Flask, abort, g, redirect, render_template, request, url_for, session, send_file
+from functools import wraps
 from PIL import Image, UnidentifiedImageError
 from dotenv import load_dotenv
+from werkzeug.security import check_password_hash
 
 BASE = Path(__file__).resolve().parent
 load_dotenv(BASE / '.env')
@@ -23,10 +26,15 @@ app.config.update(
     DATABASE=configured_path('DATABASE', 'helpdesk.sqlite3'),
     UPLOAD_DIR=configured_path('UPLOAD_DIR', 'uploads'),
     API_KEY=os.environ.get('API_KEY', ''),
+    SECRET_KEY=os.environ.get('SECRET_KEY') or None,
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE='Lax',
+    SESSION_COOKIE_SECURE=os.environ.get('SESSION_COOKIE_SECURE', '1') == '1',
     TRUSTED_HOSTS=[host.strip() for host in (os.environ.get('TRUSTED_HOSTS') or 'localhost,127.0.0.1,[::1]').split(',') if host.strip()],
     MAX_CONTENT_LENGTH=5 * 1024 * 1024,
 )
 CATEGORIES = ('Электрика', 'Сантехника', 'Мебель', 'Оборудование', 'Другое')
+STATUSES = ('Новая', 'На рассмотрении', 'Назначен исполнитель', 'В работе', 'Нужны уточнения', 'Решена', 'Отклонена')
 
 
 def db():
@@ -51,6 +59,10 @@ def init_db():
         columns = {row['name'] for row in db().execute('PRAGMA table_info(knowledge_base)')}
         if 'is_verified' not in columns:
             db().execute('ALTER TABLE knowledge_base ADD COLUMN is_verified INTEGER NOT NULL DEFAULT 0 CHECK (is_verified IN (0, 1))')
+        ticket_columns = {row['name'] for row in db().execute('PRAGMA table_info(tickets)')}
+        if 'version' not in ticket_columns:
+            db().execute('ALTER TABLE tickets ADD COLUMN version INTEGER NOT NULL DEFAULT 0')
+        db().execute("UPDATE tickets SET status='Решена', version=version+1 WHERE status='Закрыта'")
         db().commit()
 
 
@@ -74,6 +86,9 @@ def private_response(response):
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
+    if request.method == 'POST':
+        check_csrf()
+    token = csrf_token()
     rooms = db().execute('SELECT id, building, name FROM rooms ORDER BY building, name').fetchall()
     error = None
     status_code = 200
@@ -157,7 +172,7 @@ def index():
                     error = 'Не удалось сохранить заявку. Попробуйте ещё раз.'
                     status_code = 503
     buildings = sorted({room['building'] for room in rooms})
-    return render_template('index.html', rooms=rooms, buildings=buildings, categories=CATEGORIES, values=values, request_key=request_key if request_key else str(uuid.uuid4()), error=error), status_code
+    return render_template('index.html', rooms=rooms, buildings=buildings, categories=CATEGORIES, values=values, request_key=request_key if request_key else str(uuid.uuid4()), error=error, csrf_token=token), status_code
 
 
 @app.get('/ticket/<token>')
@@ -166,6 +181,173 @@ def ticket(token):
     if not item:
         abort(404)
     return render_template('created.html', number=item['id'])
+
+
+def csrf_token():
+    if not app.secret_key:
+        abort(503, 'SECRET_KEY не настроен')
+    if 'csrf_token' not in session:
+        session['csrf_token'] = secrets.token_urlsafe(32)
+    return session['csrf_token']
+
+
+def check_csrf():
+    if not app.secret_key:
+        abort(503, 'SECRET_KEY не настроен')
+    expected = session.get('csrf_token', '')
+    supplied = request.form.get('csrf_token', '')
+    if not expected or not secrets.compare_digest(expected.encode('utf-8'), supplied.encode('utf-8')):
+        abort(400)
+
+
+def staff_required(view):
+    @wraps(view)
+    def protected(*args, **kwargs):
+        if not app.secret_key:
+            abort(503, 'SECRET_KEY не настроен')
+        employee_id = session.get('employee_id')
+        auth_token = session.get('auth_token', '')
+        token_hash = hashlib.sha256(auth_token.encode()).hexdigest()
+        valid = db().execute('''SELECT e.id FROM employees e JOIN employee_sessions s ON s.employee_id=e.id
+                                WHERE e.id=? AND s.token_hash=? AND s.created_at >= datetime('now', '-12 hours')''',
+                             (employee_id, token_hash)).fetchone()
+        if not valid:
+            session.clear()
+            return redirect(url_for('login'))
+        return view(*args, **kwargs)
+    return protected
+
+
+@app.get('/admin')
+@staff_required
+def admin():
+    clauses, params = [], []
+    for field, column in (('status', 't.status'), ('category', 't.category'), ('building', 'r.building'), ('assignee', 't.assignee_id'), ('room_id', 't.room_id')):
+        value = request.args.get(field, '').strip()
+        if value:
+            if field == 'status' and value == 'Решена':
+                clauses.append("t.status IN ('Решена', 'Закрыта')")
+            else:
+                clauses.append(f'{column} = ?')
+                params.append(value)
+    for field, operator in (('date_from', '>='), ('date_to', '<=')):
+        value = request.args.get(field, '').strip()
+        if value:
+            clauses.append(f'date(t.created_at) {operator} ?')
+            params.append(value)
+    query = request.args.get('q', '').strip()
+    if query:
+        clauses.append('(t.description LIKE ? OR CAST(t.id AS TEXT) = ? OR r.name LIKE ?)')
+        params.extend((f'%{query}%', query, f'%{query}%'))
+    sql = '''SELECT t.*, r.building, r.name AS room, e.name AS assignee
+             FROM tickets t JOIN rooms r ON r.id=t.room_id LEFT JOIN employees e ON e.id=t.assignee_id'''
+    if clauses:
+        sql += ' WHERE ' + ' AND '.join(clauses)
+    items = db().execute(sql + ' ORDER BY t.created_at DESC, t.id DESC', params).fetchall()
+    employees = db().execute('SELECT id, name FROM employees ORDER BY name').fetchall()
+    buildings = db().execute('SELECT DISTINCT building FROM rooms ORDER BY building').fetchall()
+    rooms = db().execute('SELECT id, building, name FROM rooms ORDER BY building, name').fetchall()
+    return render_template('admin.html', items=items, employees=employees, buildings=buildings, rooms=rooms,
+                           statuses=STATUSES, categories=CATEGORIES, csrf_token=csrf_token())
+
+
+@app.route('/admin/tickets/<int:ticket_id>', methods=['GET', 'POST'])
+@staff_required
+def admin_ticket(ticket_id):
+    item = db().execute('''SELECT t.*, r.building, r.name AS room FROM tickets t
+                           JOIN rooms r ON r.id=t.room_id WHERE t.id=?''', (ticket_id,)).fetchone()
+    if not item:
+        abort(404)
+    employees = db().execute('SELECT id, name FROM employees ORDER BY name').fetchall()
+    error = None
+    if request.method == 'POST':
+        check_csrf()
+        version = request.form.get('version', '')
+        if not version.isascii() or not version.isdigit() or len(version) > 18:
+            abort(400, 'Некорректная версия заявки')
+        if int(version) != item['version']:
+            abort(409, 'Заявка изменена другим сотрудником. Обновите страницу и повторите изменения.')
+        status = request.form.get('status', '')
+        assignee = request.form.get('assignee_id', '')
+        comment = request.form.get('comment', '').strip()
+        visibility = request.form.get('visibility', '')
+        current_status = 'Решена' if item['status'] == 'Закрыта' else item['status']
+        if (status not in STATUSES or visibility not in ('public', 'internal') or len(comment) > 5000
+            or (assignee and not any(str(e['id']) == assignee for e in employees))
+            or (status in ('Решена', 'Отклонена') and status != current_status and not comment)):
+            error = 'Проверьте поля. При решении или отклонении обязателен итоговый комментарий.'
+        else:
+            assignee_id = int(assignee) if assignee else None
+            changes = []
+            if status != current_status:
+                changes.append(f"Статус: {current_status} → {status}")
+            if assignee_id != item['assignee_id']:
+                name = next((e['name'] for e in employees if e['id'] == assignee_id), 'не назначен')
+                changes.append(f'Исполнитель: {name}')
+            if changes or comment:
+                updated = db().execute('UPDATE tickets SET status=?, assignee_id=?, version=version+1 WHERE id=? AND version=?', (status, assignee_id, ticket_id, int(version)))
+                if updated.rowcount != 1:
+                    db().rollback()
+                    abort(409, 'Заявка изменена другим сотрудником. Обновите страницу и повторите изменения.')
+                db().execute('INSERT INTO ticket_history (ticket_id, employee_id, change_description, comment, is_public) VALUES (?, ?, ?, ?, ?)',
+                             (ticket_id, session['employee_id'], '; '.join(changes) or 'Комментарий', comment or None, int(visibility == 'public')))
+                db().commit()
+            return redirect(url_for('admin_ticket', ticket_id=ticket_id))
+    history = db().execute('''SELECT h.*, e.name AS author FROM ticket_history h LEFT JOIN employees e ON e.id=h.employee_id
+                              WHERE h.ticket_id=? ORDER BY h.id DESC''', (ticket_id,)).fetchall()
+    attachments = db().execute('SELECT id FROM attachments WHERE ticket_id=?', (ticket_id,)).fetchall()
+    return render_template('admin_ticket.html', item=item, employees=employees, statuses=STATUSES, history=history,
+                           attachments=attachments, csrf_token=csrf_token(), error=error), 400 if error else 200
+
+
+@app.get('/admin/attachments/<int:attachment_id>')
+@staff_required
+def admin_attachment(attachment_id):
+    attachment = db().execute('SELECT file_path FROM attachments WHERE id=?', (attachment_id,)).fetchone()
+    if not attachment:
+        abort(404)
+    path = Path(attachment['file_path']).resolve()
+    if not path.is_relative_to(Path(app.config['UPLOAD_DIR']).resolve()) or not path.is_file():
+        abort(404)
+    response = send_file(path, as_attachment=True, download_name=path.name)
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    return response
+
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    token = csrf_token()
+    error = None
+    if request.method == 'POST':
+        check_csrf()
+        employee = db().execute('SELECT * FROM employees WHERE login = ?', (request.form.get('login', ''),)).fetchone()
+        if employee and check_password_hash(employee['password_hash'], request.form.get('password', '')):
+            old_token = session.get('auth_token')
+            if old_token:
+                db().execute('DELETE FROM employee_sessions WHERE token_hash=?', (hashlib.sha256(old_token.encode()).hexdigest(),))
+            db().execute("DELETE FROM employee_sessions WHERE created_at < datetime('now', '-12 hours')")
+            auth_token = secrets.token_urlsafe(32)
+            db().execute('INSERT INTO employee_sessions (token_hash, employee_id) VALUES (?, ?)',
+                         (hashlib.sha256(auth_token.encode()).hexdigest(), employee['id']))
+            db().commit()
+            session.clear()
+            session['employee_id'] = employee['id']
+            session['auth_token'] = auth_token
+            csrf_token()
+            return redirect(url_for('admin'))
+        error = 'Неверный логин или пароль'
+    return render_template('login.html', csrf_token=token, error=error), 401 if error else 200
+
+
+@app.post('/logout')
+@staff_required
+def logout():
+    check_csrf()
+    db().execute('DELETE FROM employee_sessions WHERE token_hash=?',
+                 (hashlib.sha256(session['auth_token'].encode()).hexdigest(),))
+    db().commit()
+    session.clear()
+    return redirect(url_for('login'))
 
 
 if __name__ == '__main__':

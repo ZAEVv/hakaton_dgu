@@ -7,6 +7,20 @@ from pathlib import Path
 
 from PIL import Image
 from werkzeug.security import check_password_hash
+from flask.testing import FlaskClient
+
+
+class FormClient(FlaskClient):
+    def post(self, *args, **kwargs):
+        if args and args[0] == '/':
+            with self.session_transaction() as session:
+                token = session.get('csrf_token')
+            if not token:
+                with self.session_transaction() as session:
+                    session['csrf_token'] = 'test-csrf-token'
+                    token = session['csrf_token']
+            kwargs['data'] = {**kwargs.get('data', {}), 'csrf_token': token}
+        return super().post(*args, **kwargs)
 
 from main import app, db, init_db
 from seed import seed_demo
@@ -16,7 +30,9 @@ class HelpdeskTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.old_config = app.config.copy()
-        app.config.update(TESTING=True, DATABASE=str(Path(self.temp.name) / 'test.sqlite3'),
+        self.old_client_class = app.test_client_class
+        app.test_client_class = FormClient
+        app.config.update(TESTING=True, SECRET_KEY='test-only-secret', DATABASE=str(Path(self.temp.name) / 'test.sqlite3'),
                           UPLOAD_DIR=str(Path(self.temp.name) / 'uploads'))
         init_db()
         with app.app_context():
@@ -25,6 +41,7 @@ class HelpdeskTests(unittest.TestCase):
         self.client = app.test_client()
 
     def tearDown(self):
+        app.test_client_class = self.old_client_class
         app.config.clear()
         app.config.update(self.old_config)
         self.temp.cleanup()
@@ -170,6 +187,7 @@ class HelpdeskTests(unittest.TestCase):
             self.assertNotEqual(employee['password_hash'], password)
             self.assertTrue(check_password_hash(employee['password_hash'], password))
             self.assertEqual(db().execute('SELECT count(*) FROM tickets').fetchone()[0], 3)
+            self.assertEqual(db().execute("SELECT count(*) FROM tickets WHERE status='Решена'").fetchone()[0], 1)
             self.assertEqual(db().execute('SELECT count(*) FROM ticket_history').fetchone()[0], 6)
             self.assertEqual(db().execute('SELECT count(*) FROM knowledge_base').fetchone()[0], 2)
             self.assertEqual(db().execute('SELECT count(*) FROM knowledge_base WHERE is_verified = 1').fetchone()[0], 0)

@@ -35,7 +35,7 @@ def seed_demo():
             for description, category, status in (
                 ('[ДЕМО] Не работает освещение в кабинете', 'Электрика', 'Новая'),
                 ('[ДЕМО] Требуется ремонт учебного стола', 'Мебель', 'В работе'),
-                ('[ДЕМО] Настроен учебный проектор', 'Оборудование', 'Закрыта'),
+                ('[ДЕМО] Настроен учебный проектор', 'Оборудование', 'Решена'),
             ):
                 if connection.execute('SELECT id FROM tickets WHERE description = ? AND room_id = ?', (description, room_id)).fetchone():
                     continue
