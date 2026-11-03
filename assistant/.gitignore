@@ -1,0 +1,12 @@
+
+*.sqlite3
+*.db
+api.env
+.env
+.env.*
+!.env.example
+*.sqlite3-*
+*.db-*
+__pycache__/
+
+uploads/

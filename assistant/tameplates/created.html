@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Заявка № {{ number }} создана — Служба колледжа</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='static.css') }}">
+  <script src="{{ url_for('static', filename='ticket-form.js') }}" defer></script>
+</head>
+<body>
+  <header class="site-header"><span class="service-mark" aria-hidden="true">+</span> Служба колледжа</header>
+  <main>
+    <div class="success-icon" aria-hidden="true">✓</div>
+    <h1>Заявка № {{ number }} создана</h1>
+    <p>Заявка сохранена. Повторно отправлять её не нужно.</p>
+    <section class="secret-section" aria-label="Доступ к заявке">
+      <label for="secret-link">Ваша секретная ссылка</label>
+      <p class="form-note">Сохраните ссылку: она нужна для доступа к заявке. Не передавайте её посторонним.</p>
+      <input id="secret-link" value="{{ request.url }}" readonly spellcheck="false">
+      <button id="copy-link" type="button">Скопировать ссылку</button>
+      <p class="copy-status" id="copy-status" role="status"></p>
+      <noscript><p>Выделите и скопируйте ссылку из поля выше.</p></noscript>
+    </section>
+    <p class="form-note">Отслеживание статуса пока недоступно. Ссылка открывает подтверждение создания заявки.</p>
+    <a href="{{ url_for('index') }}">Подать ещё одну заявку</a>
+  </main>
+</body>
+</html>
