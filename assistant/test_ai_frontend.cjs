@@ -85,6 +85,9 @@ test('assistant API error leaves manual form available and does not create a tic
   assert.equal(h.calls.filter(c=>c.url==='/').length,0);
   assert.equal(h.ids['ticket-form'].hidden,false);
   assert.equal(h.ids['ai-send'].disabled,false);
+  const lastMessage = h.ids['chat-messages'].children.at(-1).textContent;
+  assert.match(lastMessage, /заполнить заявку вручную/);
+  assert.doesNotMatch(lastMessage, /вручную ниже/);
 });
 
 

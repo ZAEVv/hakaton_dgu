@@ -1,6 +1,6 @@
 {% extends 'applicant_base.html' %}
 {% block content %}
-<h1>Мои заявки</h1>
+<div class="account-heading"><div><p class="eyebrow">Личный кабинет</p><h1>Мои заявки</h1></div><a class="action-link" href="{{ url_for('index') }}">Подать заявку →</a></div>
 <p class="intro">Здесь сохраняются ваши обращения, их статусы и ответы сотрудников.</p>
 {% for item in items %}
 <article class="account-ticket"><h2><a href="{{ url_for('account_ticket', ticket_id=item.id) }}">Заявка № {{ item.id }}</a></h2>

@@ -1,7 +1,7 @@
 {% extends 'staff_base.html' %}
 {% block title %}Заявки{% endblock %}
 {% block content %}
-<h1>Панель сотрудника</h1>
+<div class="staff-heading"><p class="eyebrow">Рабочее пространство / Заявки</p><h1>Панель сотрудника</h1><p class="intro">Обзор обращений и очередь для обработки</p></div>
 <section class="statistics" aria-label="Статистика заявок">
 <h2>Статистика</h2>
 <p class="statistics-values"><span>Всего: <strong>{{ statistics.total }}</strong></span><span>Открыто: <strong>{{ statistics.open }}</strong></span><span>Решено: <strong>{{ statistics.resolved }}</strong></span></p>
@@ -11,7 +11,7 @@
 <div><h3>По помещениям</h3><ul>{% for row in room_statistics %}<li>{{ row.building }}, {{ row.room }}: <strong>{{ row.count }}</strong></li>{% else %}<li>Пока нет заявок.</li>{% endfor %}</ul></div>
 </div>
 </section>
-<p><a href="{{ url_for('admin', assignee=current_employee.id) }}">Мои заявки</a> · <a href="{{ url_for('admin') }}">Все заявки</a></p>
+<section class="staff-queue" aria-labelledby="queue-heading"><div class="queue-heading"><h2 id="queue-heading">Очередь заявок</h2><p><a href="{{ url_for('admin', assignee=current_employee.id) }}">Мои заявки</a> · <a href="{{ url_for('admin') }}">Все заявки</a></p></div>
 <form method="get" class="filters">
 <label>Поиск по номеру, тексту, заявителю <input name="q" value="{{ request.args.get('q', '') }}"></label>
 <label>Статус <select name="status"><option value="">Все</option>{% for x in statuses %}<option {% if request.args.get('status') == x %}selected{% endif %}>{{ x }}</option>{% endfor %}</select></label>
@@ -27,5 +27,6 @@
 <div class="table-wrap" role="region" aria-label="Таблица заявок" tabindex="0" aria-describedby="table-scroll-help"><table><thead><tr><th>№</th><th>Создана (UTC)</th><th>Заявитель</th><th>Описание</th><th>Помещение</th><th>Категория</th><th>Статус</th><th>Исполнитель</th></tr></thead><tbody>
 {% for x in items %}<tr><td><a href="{{ url_for('admin_ticket', ticket_id=x.id) }}">{{ x.id }}</a></td><td>{{ x.created_at }}</td><td>{% if x.applicant_id %}<a href="{{ url_for('admin_applicant', applicant_id=x.applicant_id) }}">{{ x.last_name }} {{ x.first_name }}</a><br>{{ x.record_book }}{% else %}Без аккаунта (старая){% endif %}</td><td><a href="{{ url_for('admin_ticket', ticket_id=x.id) }}">{{ x.description|truncate(120) }}</a></td><td>{{ x.building }}, {{ x.room }}</td><td>{{ x.category }}</td><td>{{ 'Решена' if x.status == 'Закрыта' else x.status }}</td><td>{{ x.assignee or 'Не назначен' }}</td></tr>
 {% else %}<tr><td colspan="8">Заявок не найдено. Попробуйте изменить фильтры.</td></tr>{% endfor %}
-</tbody></table></div>
+</tbody></table></div></section>
+
 {% endblock %}
