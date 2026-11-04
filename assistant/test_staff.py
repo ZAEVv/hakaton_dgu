@@ -30,6 +30,27 @@ class StaffTests(unittest.TestCase):
         self.client.get('/login')
         return self.client.post('/login', data={'login': 'staff', 'password': 'password', 'csrf_token': self.csrf()})
 
+    def test_statistics_count_all_tickets_even_when_filtered(self):
+        with app.app_context():
+            db().execute("INSERT INTO rooms VALUES (1,'Корпус','101')")
+            db().executemany("INSERT INTO tickets (description,category,room_id,status) VALUES (?,?,1,?)", [
+                ('Открытая', 'Другое', 'Новая'), ('Решённая', 'Другое', 'Решена'),
+                ('Отклонённая', 'Другое', 'Отклонена')])
+            db().commit()
+        self.login()
+        page = self.client.get('/admin?status=Новая').get_data(as_text=True)
+        self.assertIn('Всего: <strong>3</strong>', page)
+        self.assertIn('Открыто: <strong>1</strong>', page)
+        self.assertIn('Решено: <strong>1</strong>', page)
+
+    def test_excess_login_attempts_are_limited(self):
+        self.client.get('/login')
+        for _ in range(15):
+            response = self.client.post('/login', data={'login': 'unknown', 'password': 'bad', 'csrf_token': self.csrf()})
+            self.assertEqual(response.status_code, 401)
+        response = self.client.post('/login', data={'login': 'staff', 'password': 'bad', 'csrf_token': self.csrf()})
+        self.assertEqual(response.status_code, 429)
+
     def test_login_csrf_and_logout(self):
         self.client.get('/login')
         self.assertEqual(self.client.post('/login', data={'login': 'staff', 'password': 'password'}).status_code, 400)

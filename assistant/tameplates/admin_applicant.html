@@ -2,7 +2,7 @@
 {% block title %}Заявитель — {{ applicant.last_name }} {{ applicant.first_name }}{% endblock %}
 {% block content %}
 <h1>{{ applicant.last_name }} {{ applicant.first_name }}</h1>
-<p>Номер зачётной книжки: <strong>{{ applicant.record_book }}</strong></p>
+<p>Логин: <strong>{{ applicant.record_book }}</strong></p>
 <p>Дата регистрации: {{ applicant.created_at }} UTC</p>
 <p>Данные указаны заявителем при регистрации.</p>
 <section><h2>Заявки пользователя</h2><ul>{% for item in items %}<li><a href="{{ url_for('admin_ticket', ticket_id=item.id) }}">№ {{ item.id }} — {{ item.description|truncate(120) }}</a> — {{ 'Решена' if item.status == 'Закрыта' else item.status }} — {{ item.created_at }} UTC</li>{% else %}<li>Заявок пока нет.</li>{% endfor %}</ul></section>

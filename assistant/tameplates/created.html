@@ -17,6 +17,6 @@
 {% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
 <form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 <label for="reply">Ваш ответ</label><textarea id="reply" name="comment" required maxlength="5000" rows="4">{{ request.form.get('comment', '') }}</textarea>
-<p class="form-note">После ответа на запрос уточнений заявка автоматически вернётся в работу.</p><button>Отправить ответ</button></form></section>
+<p class="form-note">Ваш ответ увидит сотрудник; статус изменит ответственный сотрудник.</p><button>Отправить ответ</button></form></section>
 {% endif %}
 {% endblock %}

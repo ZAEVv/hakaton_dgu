@@ -1,0 +1,9 @@
+<section class="ai-assistant" aria-labelledby="ai-heading">
+  <h2 id="ai-heading">Помощник</h2>
+  <p>Задайте вопрос или опишите проблему. Не вводите пароли и другую лишнюю личную информацию: сообщение передаётся в DeepSeek.</p>
+  <label for="ai-message">Ваш вопрос или проблема</label>
+  <textarea id="ai-message" maxlength="2000" rows="3" placeholder="Например: в кабинете не работает проектор"></textarea>
+  <button type="button" id="ai-send">Спросить помощника</button>
+  <div id="ai-result" role="status" aria-live="polite" hidden><p id="ai-answer"></p><p id="ai-question"></p><p id="ai-source"></p><button type="button" id="ai-use" hidden>Перенести черновик в заявку</button></div>
+  <p>Помощник может ошибаться. Проверьте информацию перед отправкой заявки.</p>
+</section>

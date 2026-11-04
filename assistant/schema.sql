@@ -84,3 +84,19 @@ CREATE TABLE IF NOT EXISTS ticket_access (
     token TEXT NOT NULL UNIQUE,
     request_key TEXT NOT NULL UNIQUE
 );
+
+-- Limited request history for per-account assistant usage.
+CREATE TABLE IF NOT EXISTS assistant_requests (
+    id INTEGER PRIMARY KEY,
+    applicant_id INTEGER NOT NULL REFERENCES applicants(id),
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS assistant_requests_applicant_time ON assistant_requests(applicant_id, created_at);
+
+CREATE TABLE IF NOT EXISTS login_attempts (
+    id INTEGER PRIMARY KEY,
+    client_hash TEXT NOT NULL,
+    scope TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS login_attempts_client_time ON login_attempts(client_hash, scope, created_at);

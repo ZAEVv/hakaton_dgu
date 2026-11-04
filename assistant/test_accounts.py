@@ -171,6 +171,16 @@ class AccountTests(unittest.TestCase):
             self.assertEqual(db().execute('SELECT applicant_id FROM ticket_history ORDER BY id DESC').fetchone()[0], self.owner_id)
         self.assertIn('Иванов Иван', self.staff.get('/admin/tickets/1').get_data(as_text=True))
 
+    def test_reply_does_not_change_clarification_status(self):
+        response = self.create()
+        with app.app_context():
+            db().execute("UPDATE tickets SET status='Нужны уточнения'")
+            db().commit()
+        self.assertEqual(self.post(self.owner, response.location, comment='Уточнение').status_code, 302)
+        with app.app_context():
+            self.assertEqual(db().execute('SELECT status FROM tickets').fetchone()[0], 'Нужны уточнения')
+            self.assertEqual(db().execute('SELECT comment FROM ticket_history ORDER BY id DESC').fetchone()[0], 'Уточнение')
+
     def test_legacy_ticket_migration_does_not_claim_old_data(self):
         legacy = Path(self.temp.name) / 'legacy.sqlite'
         with closing(sqlite3.connect(legacy)) as connection:

@@ -17,7 +17,8 @@ def seed_demo():
             connection.executemany(
                 'INSERT OR IGNORE INTO rooms (building, name) VALUES (?, ?)',
                 [('Главный корпус', 'Кабинет 101'), ('Главный корпус', 'Кабинет 102'),
-                 ('Учебный корпус', 'Кабинет 201')],
+                 ('Учебный корпус', 'Кабинет 201'), ('Учебный корпус', 'Лаборатория'),
+                 ('Главный корпус', 'Общая зона')],
             )
             employee = connection.execute('SELECT id FROM employees WHERE login = ?', ('demo',)).fetchone()
             if employee is None:

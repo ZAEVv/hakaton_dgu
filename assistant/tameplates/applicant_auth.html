@@ -9,8 +9,8 @@
 <div class="field"><label for="first-name">Имя</label><input id="first-name" name="first_name" autocomplete="given-name" maxlength="80" required value="{{ request.form.get('first_name', '') }}"></div>
 <div class="field"><label for="last-name">Фамилия</label><input id="last-name" name="last_name" autocomplete="family-name" maxlength="80" required value="{{ request.form.get('last_name', '') }}"></div>
 {% endif %}
-<div class="field"><label for="record-book">Номер зачётной книжки</label><input id="record-book" name="record_book" autocomplete="username" maxlength="40" required value="{{ request.form.get('record_book', '') }}"></div>
-<div class="field"><label for="password">Пароль</label><input id="password" name="password" type="password" autocomplete="{{ 'new-password' if registering else 'current-password' }}" {% if registering %}minlength="10"{% endif %} maxlength="256" required>{% if registering %}<small>От 10 до 256 символов. Не используйте номер зачётной книжки как пароль.</small>{% endif %}</div>
+<div class="field"><label for="record-book">Логин или номер зачётной книжки</label><input id="record-book" name="record_book" autocomplete="username" maxlength="40" required value="{{ request.form.get('record_book', '') }}"></div>
+<div class="field"><label for="password">Пароль</label><input id="password" name="password" type="password" autocomplete="{{ 'new-password' if registering else 'current-password' }}" {% if registering %}minlength="10"{% endif %} maxlength="256" required>{% if registering %}<small>От 10 до 256 символов. Не используйте логин как пароль.</small>{% endif %}</div>
 {% if registering %}<div class="field"><label for="password-confirm">Повторите пароль</label><input id="password-confirm" name="password_confirm" type="password" autocomplete="new-password" minlength="10" maxlength="256" required></div>{% endif %}
 <button>{{ 'Зарегистрироваться' if registering else 'Войти' }}</button>
 </form>

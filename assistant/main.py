@@ -8,11 +8,13 @@ import click
 from io import BytesIO
 from pathlib import Path
 
-from flask import Flask, abort, g, redirect, render_template, request, url_for, session, send_file
+from flask import Flask, abort, g, redirect, render_template, request, url_for, session, send_file, jsonify
 from functools import wraps
 from PIL import Image, UnidentifiedImageError
 from dotenv import load_dotenv
 from werkzeug.security import check_password_hash, generate_password_hash
+from ai_helper import assist, danger_detected, AssistantUnavailable
+from demo_knowledge import DEMO_KNOWLEDGE
 
 BASE = Path(__file__).resolve().parent
 load_dotenv(BASE / '.env')
@@ -115,6 +117,8 @@ def applicant_required(view):
                                     WHERE a.id=? AND s.token_hash=? AND s.created_at >= datetime('now', '-12 hours')''',
                                  (session.get('applicant_id'), token_hash)).fetchone()
         if not applicant:
+            if request.endpoint == 'index' and request.method == 'GET' and 'room' in request.args:
+                session['pending_qr_room'] = request.args.get('room', '')[:64]
             session.pop('applicant_id', None)
             session.pop('applicant_auth_token', None)
             return redirect(url_for('applicant_login'))
@@ -133,6 +137,16 @@ def index():
     error = None
     status_code = 200
     values = request.form if request.method == 'POST' else {}
+    qr_notice = None
+    if request.method == 'GET':
+        qr_room = request.args.get('room') if 'room' in request.args else session.pop('pending_qr_room', None)
+        if qr_room is not None:
+            match = next((room for room in rooms if str(room['id']) == qr_room), None)
+            if match:
+                values = {'building': match['building'], 'room_id': str(match['id'])}
+                qr_notice = 'Место выбрано по QR-коду. При необходимости его можно изменить.'
+            else:
+                qr_notice = 'Место из QR-кода не найдено. Выберите корпус и помещение вручную.'
     request_key = values.get('request_key', '')
     if request.method == 'POST':
         description = values.get('description', '').strip()
@@ -211,7 +225,42 @@ def index():
                     error = 'Не удалось сохранить заявку. Попробуйте ещё раз.'
                     status_code = 503
     buildings = sorted({room['building'] for room in rooms})
-    return render_template('index.html', rooms=rooms, buildings=buildings, categories=CATEGORIES, values=values, request_key=request_key if request_key else str(uuid.uuid4()), error=error, csrf_token=token), status_code
+    return render_template('index.html', rooms=rooms, buildings=buildings, categories=CATEGORIES, values=values, request_key=request_key if request_key else str(uuid.uuid4()), error=error, csrf_token=token, qr_notice=qr_notice), status_code
+
+
+@app.post('/api/assistant')
+@applicant_required
+def assistant_api():
+    expected = session.get('csrf_token', '')
+    supplied = request.headers.get('X-CSRF-Token', '')
+    if not expected or not secrets.compare_digest(expected.encode(), supplied.encode()):
+        db().rollback()
+        return jsonify(error='Не удалось проверить запрос. Обновите страницу.'), 400
+    data = request.get_json(silent=True)
+    message = data.get('message') if isinstance(data, dict) else None
+    if not isinstance(message, str) or not message.strip() or len(message) > 2000:
+        db().rollback()
+        return jsonify(error='Введите сообщение длиной от 1 до 2000 символов.'), 400
+    # Keep the transaction short: never hold a SQLite write lock during the network call.
+    if not danger_detected(message):
+        db().execute("DELETE FROM assistant_requests WHERE created_at < datetime('now', '-1 hour')")
+        count = db().execute("SELECT COUNT(*) FROM assistant_requests WHERE applicant_id=? AND created_at >= datetime('now', '-1 minute')", (g.applicant['id'],)).fetchone()[0]
+        hour_count = db().execute("SELECT COUNT(*) FROM assistant_requests WHERE applicant_id=?", (g.applicant['id'],)).fetchone()[0]
+        if count >= 10 or hour_count >= 60:
+            db().rollback()
+            return jsonify(error='Слишком много запросов. Попробуйте позже.'), 429
+        db().execute('INSERT INTO assistant_requests (applicant_id) VALUES (?)', (g.applicant['id'],))
+    records = [dict(row) for row in db().execute('SELECT id, question, answer, is_verified FROM knowledge_base WHERE is_verified=1 ORDER BY id LIMIT 30')]
+    if os.environ.get('DEEPSEEK_DEMO_KNOWLEDGE') == '1':
+        records = DEMO_KNOWLEDGE + records
+    db().commit()
+    try:
+        result = assist(message, records, CATEGORIES, os.environ.get('DEEPSEEK_API_KEY', ''), os.environ.get('DEEPSEEK_MODEL', 'deepseek-flash'))
+        return jsonify(result)
+    except ValueError:
+        return jsonify(error='Введите сообщение длиной от 1 до 2000 символов.'), 400
+    except AssistantUnavailable:
+        return jsonify(error='Помощник временно недоступен. Вы можете заполнить заявку вручную.'), 503
 
 
 @app.route('/ticket/<token>', methods=['GET', 'POST'])
@@ -246,13 +295,9 @@ def account_ticket(ticket_id):
         if not comment or len(comment) > 5000:
             error = 'Введите ответ длиной от 1 до 5000 символов.'
         else:
-            status = 'В работе' if item['status'] == 'Нужны уточнения' else item['status']
-            change = 'Ответ заявителя'
-            if status != item['status']:
-                change = f"Статус: {item['status']} → {status}; Ответ заявителя"
-            db().execute('UPDATE tickets SET status=?, version=version+1 WHERE id=?', (status, item['id']))
+            db().execute('UPDATE tickets SET version=version+1 WHERE id=?', (item['id'],))
             db().execute('INSERT INTO ticket_history (ticket_id,applicant_id,change_description,comment,is_public) VALUES (?,?,?,?,1)',
-                         (item['id'], g.applicant['id'], change, comment))
+                         (item['id'], g.applicant['id'], 'Ответ заявителя', comment))
             db().commit()
             return redirect(url_for('account_ticket', ticket_id=item['id']))
     rows = db().execute('''SELECT created_at, change_description, comment, is_public
@@ -283,6 +328,7 @@ def revoke_browser_sessions():
 
 
 def start_applicant_session(applicant_id):
+    pending_qr_room = session.get('pending_qr_room')
     revoke_browser_sessions()
     db().execute("DELETE FROM applicant_sessions WHERE created_at < datetime('now', '-12 hours')")
     token = secrets.token_urlsafe(32)
@@ -290,6 +336,8 @@ def start_applicant_session(applicant_id):
                  (hashlib.sha256(token.encode()).hexdigest(), applicant_id))
     db().commit()
     session.clear()
+    if pending_qr_room is not None:
+        session['pending_qr_room'] = pending_qr_room
     session['applicant_id'] = applicant_id
     session['applicant_auth_token'] = token
     csrf_token()
@@ -310,7 +358,7 @@ def applicant_register():
         record_book = record_book_number(request.form.get('record_book', ''))
         password = request.form.get('password', '')
         if not first_name or len(first_name) > 80 or not last_name or len(last_name) > 80 or not re.fullmatch(r'[A-ZА-ЯЁ0-9/-]{1,40}', record_book):
-            error = 'Укажите имя и фамилию (до 80 символов) и номер зачётной книжки (до 40 букв, цифр, / или -).'
+            error = 'Укажите имя и фамилию (до 80 символов) и логин (до 40 букв, цифр, / или -).'
         elif not 10 <= len(password) <= 256:
             error = 'Пароль должен содержать от 10 до 256 символов.'
         elif password != request.form.get('password_confirm', ''):
@@ -318,13 +366,27 @@ def applicant_register():
         else:
             db().execute('BEGIN IMMEDIATE')
             if db().execute('SELECT 1 FROM applicants WHERE record_book=?', (record_book,)).fetchone():
-                error = 'Этот номер зачётной книжки уже зарегистрирован. Войдите в свой аккаунт.'
+                error = 'Этот логин уже зарегистрирован. Войдите в свой аккаунт.'
             else:
                 applicant_id = db().execute('INSERT INTO applicants (first_name,last_name,record_book,password_hash) VALUES (?,?,?,?)',
                                             (first_name, last_name, record_book, generate_password_hash(password))).lastrowid
                 start_applicant_session(applicant_id)
-                return redirect(url_for('account'))
+                return redirect(url_for('index' if 'pending_qr_room' in session else 'account'))
     return render_template('applicant_auth.html', registering=True, csrf_token=token, error=error), 400 if error else 200
+
+
+def login_attempt_allowed(scope):
+    # Limits are local to the server; do not trust forwarding headers from clients.
+    client_hash = hashlib.sha256((app.secret_key + ':' + (request.remote_addr or 'unknown')).encode()).hexdigest()
+    db().execute('BEGIN IMMEDIATE')
+    db().execute("DELETE FROM login_attempts WHERE created_at < datetime('now', '-10 minutes')")
+    count = db().execute('SELECT COUNT(*) FROM login_attempts WHERE client_hash=? AND scope=?', (client_hash, scope)).fetchone()[0]
+    if count >= 15:
+        db().rollback()
+        return False
+    db().execute('INSERT INTO login_attempts (client_hash,scope) VALUES (?,?)', (client_hash, scope))
+    db().commit()
+    return True
 
 
 @app.route('/account/login', methods=['GET', 'POST'])
@@ -333,14 +395,15 @@ def applicant_login():
     error = None
     if request.method == 'POST':
         check_csrf()
-        db().execute('BEGIN IMMEDIATE')
+        if not login_attempt_allowed('applicant'):
+            return render_template('applicant_auth.html', registering=False, csrf_token=token, error='Слишком много попыток входа. Попробуйте через 10 минут.'), 429
         applicant = db().execute('SELECT * FROM applicants WHERE record_book=?',
                                  (record_book_number(request.form.get('record_book', '')),)).fetchone()
         password = request.form.get('password', '')
         if applicant and len(password) <= 256 and check_password_hash(applicant['password_hash'], password):
             start_applicant_session(applicant['id'])
-            return redirect(url_for('account'))
-        error = 'Неверный номер зачётной книжки или пароль.'
+            return redirect(url_for('index' if 'pending_qr_room' in session else 'account'))
+        error = 'Неверный логин или пароль.'
     return render_template('applicant_auth.html', registering=False, csrf_token=token, error=error), 401 if error else 200
 
 
@@ -465,9 +528,55 @@ def admin():
     employees = db().execute('SELECT id, name FROM employees ORDER BY name').fetchall()
     buildings = db().execute('SELECT DISTINCT building FROM rooms ORDER BY building').fetchall()
     rooms = db().execute('SELECT id, building, name FROM rooms ORDER BY building, name').fetchall()
+    statistics = db().execute('''SELECT COUNT(*) AS total,
+          COALESCE(SUM(CASE WHEN status NOT IN ('Решена', 'Отклонена', 'Закрыта') THEN 1 ELSE 0 END), 0) AS open,
+          COALESCE(SUM(CASE WHEN status IN ('Решена', 'Закрыта') THEN 1 ELSE 0 END), 0) AS resolved FROM tickets''').fetchone()
     return render_template('admin.html', items=items, employees=employees, buildings=buildings, rooms=rooms,
-                           statuses=STATUSES, categories=CATEGORIES, csrf_token=csrf_token())
+                           statuses=STATUSES, categories=CATEGORIES, statistics=statistics, csrf_token=csrf_token())
 
+
+
+@app.route('/admin/qr', methods=['GET', 'POST'])
+@staff_required
+def admin_qr():
+    require_admin()
+    error = None
+    if request.method == 'POST':
+        check_csrf()
+        building = request.form.get('building', '').strip()
+        name = request.form.get('name', '').strip()
+        room_id = request.form.get('room_id', '')
+        if not building or not name or len(building) > 120 or len(name) > 120 or (room_id and (not room_id.isascii() or not room_id.isdigit())):
+            error = 'Укажите корпус и название места длиной до 120 символов.'
+        else:
+            try:
+                if room_id:
+                    changed = db().execute('UPDATE rooms SET building=?, name=? WHERE id=?', (building, name, room_id))
+                    if not changed.rowcount:
+                        abort(404)
+                else:
+                    db().execute('INSERT INTO rooms (building, name) VALUES (?, ?)', (building, name))
+                db().commit()
+                return redirect(url_for('admin_qr'))
+            except sqlite3.IntegrityError:
+                db().rollback()
+                error = 'Такое место уже существует.'
+    rooms = db().execute('SELECT id, building, name FROM rooms ORDER BY building, name').fetchall()
+    return render_template('qr_codes.html', rooms=rooms, csrf_token=csrf_token(), error=error), 400 if error else 200
+
+
+@app.get('/admin/qr/<int:room_id>.png')
+@staff_required
+def admin_qr_image(room_id):
+    require_admin()
+    if not db().execute('SELECT 1 FROM rooms WHERE id=?', (room_id,)).fetchone():
+        abort(404)
+    import qrcode
+    target = url_for('index', room=room_id, _external=True)
+    result = BytesIO()
+    qrcode.make(target).save(result, format='PNG')
+    result.seek(0)
+    return send_file(result, mimetype='image/png', download_name=f'room-{room_id}.png')
 
 @app.get('/admin/applicants/<int:applicant_id>')
 @staff_required
@@ -637,7 +746,8 @@ def login():
     error = None
     if request.method == 'POST':
         check_csrf()
-        db().execute('BEGIN IMMEDIATE')
+        if not login_attempt_allowed('staff'):
+            return render_template('login.html', csrf_token=token, error='Слишком много попыток входа. Попробуйте через 10 минут.'), 429
         employee = db().execute('SELECT * FROM employees WHERE login = ?', (request.form.get('login', ''),)).fetchone()
         if employee and employee['is_active'] and check_password_hash(employee['password_hash'], request.form.get('password', '')):
             revoke_browser_sessions()

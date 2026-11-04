@@ -10,7 +10,7 @@
 {% if current_applicant %}
 <nav class="account-nav" aria-label="Личный кабинет"><a href="{{ url_for('account') }}">Мои заявки</a><a href="{{ url_for('index') }}">Подать заявку</a>
 <form method="post" action="{{ url_for('applicant_logout') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button>Выйти</button></form></nav>
-<p class="form-note">{{ current_applicant.last_name }} {{ current_applicant.first_name }} · Зачётная книжка {{ current_applicant.record_book }}</p>
+<p class="form-note">{{ current_applicant.last_name }} {{ current_applicant.first_name }} · Логин: {{ current_applicant.record_book }}</p>
 {% endif %}
 {% block content %}{% endblock %}
 </main><footer>Служба заявок колледжа · <a href="{{ url_for('login') }}">Вход сотрудника</a></footer>

@@ -164,7 +164,7 @@ class PermissionsTests(unittest.TestCase):
             self.assertEqual(db().execute('SELECT is_active FROM employees WHERE id=2').fetchone()[0], 1)
             self.assertEqual(db().execute('SELECT COUNT(*) FROM ticket_history').fetchone()[0], 1)
 
-    def test_applicant_replies_validation_csrf_and_automatic_status(self):
+    def test_applicant_replies_validation_csrf_and_status_unchanged(self):
         client = self.applicant
         client.get('/account/tickets/1')
         self.assertEqual(client.post('/account/tickets/1', data={'comment': 'Ответ'}).status_code, 400)
@@ -177,7 +177,7 @@ class PermissionsTests(unittest.TestCase):
         self.assertNotIn('Приватно', page)
         with app.app_context():
             item = db().execute('SELECT status,version FROM tickets WHERE id=1').fetchone()
-            self.assertEqual(tuple(item), ('В работе', 2))
+            self.assertEqual(tuple(item), ('Нужны уточнения', 2))
             history = db().execute('SELECT * FROM ticket_history ORDER BY id DESC').fetchone()
             self.assertIsNone(history['employee_id'])
             self.assertEqual(history['is_public'], 1)
