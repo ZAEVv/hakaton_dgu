@@ -33,10 +33,21 @@ class AssistantTests(unittest.TestCase):
     def test_unknown_question_never_invents_answer(self):
         self.assertEqual(self.run_model('Когда починят?', {'type':'question', 'category':None, 'knowledge_id':None})['answer'], UNKNOWN_TEXT)
 
-    def test_fault_returns_original_editable_draft(self):
-        response = self.run_model('Не работает свет', {'type':'fault', 'category':'Электрика', 'knowledge_id':None})
-        self.assertEqual(response['draft'], 'Не работает свет')
+    def test_fault_returns_short_model_summary(self):
+        response = self.run_model('Не работает свет', {'type':'fault', 'category':'Электрика', 'knowledge_id':None, 'summary':'Неисправно освещение.'})
+        self.assertEqual(response['draft'], 'Неисправно освещение.')
         self.assertEqual(response['category'], 'Электрика')
+
+    def test_invalid_fault_summary_is_not_used(self):
+        for summary in (None, '', 'x' * 301):
+            with self.assertRaises(AssistantUnavailable):
+                self.run_model('Не работает свет', {'type':'fault', 'category':'Электрика', 'knowledge_id':None, 'summary':summary})
+
+    def test_danger_summary_keeps_warning(self):
+        result = assist('Из розетки идут искры', [], self.categories, 'key', summarize_danger=True,
+                        classify=lambda *args: {'type':'danger', 'summary':'Искрит розетка.'})
+        self.assertEqual(result['answer'], DANGER_TEXT)
+        self.assertEqual(result['draft'], 'Искрит розетка.')
 
     def test_incomplete_and_invalid_category(self):
         self.assertTrue(self.run_model('Сломалось', {'type':'unclear', 'category':None, 'knowledge_id':None})['question'])

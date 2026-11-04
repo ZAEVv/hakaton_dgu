@@ -254,8 +254,9 @@ def assistant_api():
     if not isinstance(message, str) or not message.strip() or len(message) > 2000:
         db().rollback()
         return jsonify(error='Введите сообщение длиной от 1 до 2000 символов.'), 400
+    summarize_danger = data.get('summarize_danger') is True
     # Keep the transaction short: never hold a SQLite write lock during the network call.
-    if not danger_detected(message):
+    if not danger_detected(message) or summarize_danger:
         db().execute("DELETE FROM assistant_requests WHERE created_at < datetime('now', '-1 hour')")
         count = db().execute("SELECT COUNT(*) FROM assistant_requests WHERE applicant_id=? AND created_at >= datetime('now', '-1 minute')", (g.applicant['id'],)).fetchone()[0]
         hour_count = db().execute("SELECT COUNT(*) FROM assistant_requests WHERE applicant_id=?", (g.applicant['id'],)).fetchone()[0]
@@ -269,7 +270,7 @@ def assistant_api():
         records = DEMO_KNOWLEDGE + records
     db().commit()
     try:
-        result = assist(message, records, CATEGORIES, os.environ.get('DEEPSEEK_API_KEY', ''), os.environ.get('DEEPSEEK_MODEL', 'deepseek-flash'))
+        result = assist(message, records, CATEGORIES, os.environ.get('DEEPSEEK_API_KEY', ''), os.environ.get('DEEPSEEK_MODEL', 'deepseek-flash'), summarize_danger=summarize_danger)
         return jsonify(result)
     except ValueError:
         return jsonify(error='Введите сообщение длиной от 1 до 2000 символов.'), 400

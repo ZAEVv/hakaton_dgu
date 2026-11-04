@@ -41,7 +41,10 @@ def _fetch_classification(text, records, categories, api_key, model):
     # Only question titles and IDs are sent: no applicant details, ticket IDs or photos.
     prompt = ('Ты классификатор обращений колледжа. Верни только JSON с полями '
               'type (question, fault, unclear или danger), category (строка из списка '
-              'категорий или null), knowledge_id (целый id записи или null). '
+              'категорий или null), knowledge_id (целый id записи или null), '
+              'summary (краткое описание проблемы для сотрудника, максимум 300 символов; '
+              'для fault или danger, иначе null). Указывай только факты из сообщения; '
+              'не добавляй вымышленные причины, место или действия. '
               'Для question выбирай knowledge_id только если вопрос действительно отвечает '
               'на запрос; при сомнении null. При дыме, искрах, запахе гари, просьбе '
               'ремонтировать электропроводку и других опасностях выбирай danger. '
@@ -66,17 +69,26 @@ def _fetch_classification(text, records, categories, api_key, model):
         raise AssistantUnavailable('DeepSeek недоступен или вернул некорректный ответ') from exc
 
 
-def assist(text, knowledge, categories, api_key, model='deepseek-flash', classify=None):
+def assist(text, knowledge, categories, api_key, model='deepseek-flash', classify=None, summarize_danger=False):
     """Return vetted response. knowledge must contain verified dicts: id/question/answer.
 
     Raises ValueError on invalid input and AssistantUnavailable for provider errors.
-    Returned draft is original text, not model-generated instructions.
+    For faults, the draft is a short summary; invalid summaries are rejected.
     """
     if not isinstance(text, str) or not text.strip() or len(text) > MAX_MESSAGE:
         raise ValueError('Введите сообщение длиной от 1 до 2000 символов.')
     text = text.strip()
     if danger_detected(text):
-        return _fixed_danger()
+        result = _fixed_danger()
+        if summarize_danger and api_key:
+            try:
+                response = (classify or _fetch_classification)(text, [], categories, api_key, model)
+                summary = response.get('summary') if isinstance(response, dict) else None
+                if isinstance(summary, str) and 1 <= len(summary.strip()) <= 300:
+                    result['draft'] = summary.strip()
+            except AssistantUnavailable:
+                pass
+        return result
     # Never provide credentials, even if a knowledge record is selected incorrectly.
     if re.search(r'парол|ключ\w*\s+(?:доступа|wi.?fi|вай.?фай)|секретн\w*\s+код', text.casefold()):
         return _safe_response('question', answer='Пароли и коды доступа помощник не сообщает. Обратитесь к ответственному сотруднику.')
@@ -111,8 +123,11 @@ def assist(text, knowledge, categories, api_key, model='deepseek-flash', classif
         return _safe_response('unclear', answer='Недостаточно данных для подготовки заявки.',
                               question='Что именно случилось и где находится проблема?')
     if kind == 'fault':
-        return _safe_response('fault', answer='Для устранения проблемы предложите заявку сотруднику. Проверьте и дополните описание перед отправкой.',
-                              category=category, draft=text)
+        summary = result.get('summary')
+        if not isinstance(summary, str) or not 1 <= len(summary.strip()) <= 300:
+            raise AssistantUnavailable('Не удалось подготовить краткое описание')
+        return _safe_response('fault', answer='Я подготовил краткое описание для сотрудника.',
+                              category=category, draft=summary.strip())
     item = next((row for row in verified if row['id'] == knowledge_id), None)
     if item is None:
         return _safe_response('question', answer=UNKNOWN_TEXT)

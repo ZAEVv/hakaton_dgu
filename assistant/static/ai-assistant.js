@@ -27,6 +27,17 @@
   async function createTicket() {
     if (!draft || busy || pending) return;
     if (!location.value) { say('Выберите место из списка, чтобы я смог отправить заявку.'); return; }
+    busy = true; pending = true; send.disabled = submit.disabled = true;
+    if (draft.type === 'danger' && !draft.summarized) {
+      try {
+        const response = await fetch('/api/assistant', {method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/json','X-CSRF-Token':csrf}, body:JSON.stringify({message:draft.draft,summarize_danger:true})});
+        if (response.ok) {
+          const result = await response.json();
+          if (typeof result.draft === 'string' && result.draft.trim()) draft.draft = result.draft;
+        }
+      } catch (_) { /* Retain the user's problem if summarization is unavailable. */ }
+      draft.summarized = true; save();
+    }
     const selected = location.selectedOptions[0];
     form.elements.building.value = selected.dataset.building;
     form.elements.building.dispatchEvent(new Event('change'));
@@ -34,7 +45,6 @@
     form.elements.category.value = draft.category || 'Другое';
     form.elements.description.value = draft.draft;
     const body = new FormData(form);
-    busy = true; pending = true; send.disabled = submit.disabled = true;
     say('Отправляю заявку сотрудникам…');
     try {
       const response = await fetch(form.action || '/', {method:'POST', body, credentials:'same-origin'});
