@@ -537,9 +537,13 @@ def create_admin(login, name, password):
 @app.get('/admin')
 @staff_required
 def admin():
+    # Pin all dashboard reads to one SQLite snapshot.
+    db().execute('BEGIN')
     clauses, params = [], []
     for field, column in (('status', 't.status'), ('category', 't.category'), ('building', 'r.building'), ('assignee', 't.assignee_id'), ('room_id', 't.room_id')):
-        value = request.args.get(field, '').strip()
+        value = request.args.get(field, '')
+        if field != 'category':
+            value = value.strip()
         if value:
             if field == 'status' and value == 'Решена':
                 clauses.append("t.status IN ('Решена', 'Закрыта')")
@@ -613,13 +617,22 @@ def manage_categories():
                     abort(404)
         elif action in ('disable', 'enable'):
             category_id = request.form.get('category_id', '')
-            if not db().execute('UPDATE categories SET is_active=? WHERE id=?', (int(action == 'enable'), category_id)).rowcount:
+            category = db().execute('SELECT is_active FROM categories WHERE id=?', (category_id,)).fetchone()
+            if category is None:
                 abort(404)
+            # staff_required holds BEGIN IMMEDIATE through validation and commit.
+            if action == 'disable' and category['is_active'] and db().execute(
+                    'SELECT COUNT(*) FROM categories WHERE is_active=1').fetchone()[0] <= 1:
+                error = 'Нельзя отключить последнюю активную категорию. Сначала включите или добавьте другую.'
+            else:
+                db().execute('UPDATE categories SET is_active=? WHERE id=?', (int(action == 'enable'), category_id))
         else:
             abort(400)
         if not error:
             db().commit()
             return redirect(url_for('manage_categories'))
+    if error:
+        db().rollback()
     categories = db().execute('SELECT * FROM categories ORDER BY id').fetchall()
     return render_template('categories.html', categories=categories, error=error, csrf_token=csrf_token()), 400 if error else 200
 

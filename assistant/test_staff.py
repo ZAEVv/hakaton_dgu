@@ -1,3 +1,7 @@
+import sqlite3
+from contextlib import closing
+from unittest.mock import patch
+import main
 import tempfile
 import unittest
 from pathlib import Path
@@ -313,3 +317,50 @@ class StaffTests(unittest.TestCase):
     def test_panel_requires_login(self):
         self.assertEqual(self.client.get('/admin').status_code, 302)
         self.assertIn('/login', self.client.get('/admin').location)
+
+    def test_statistics_share_snapshot_during_concurrent_commit(self):
+        with app.app_context():
+            db().execute("PRAGMA journal_mode=WAL")
+            db().execute("INSERT INTO rooms VALUES (1,'А','101')")
+            db().execute("INSERT INTO tickets(description,category,room_id) VALUES ('До','Другое',1)")
+            db().commit()
+        self.login()
+        original = main.db
+        written = []
+        class Connection:
+            def execute(proxy, sql, *args):
+                cursor = original().execute(sql, *args)
+                if 'AS resolved FROM tickets' in sql and not written:
+                    # Finish the aggregate read, then commit on another connection.
+                    row = cursor.fetchone()
+                    with closing(sqlite3.connect(app.config['DATABASE'])) as writer:
+                        writer.execute("INSERT INTO tickets(description,category,room_id) VALUES ('После','Другое',1)")
+                        writer.commit()
+                    written.append(True)
+                    class Result:
+                        def fetchone(self): return row
+                    return Result()
+                return cursor
+        with patch('main.db', return_value=Connection()), patch('main.render_template') as render:
+            render.return_value = ''
+            self.client.get('/admin')
+            data = render.call_args.kwargs
+        self.assertTrue(written)
+        self.assertEqual(data['statistics']['total'], 1)
+        self.assertEqual(sum(r['count'] for r in data['category_statistics']), 1)
+        self.assertEqual(sum(r['count'] for r in data['room_statistics']), 1)
+        with closing(sqlite3.connect(app.config['DATABASE'])) as connection:
+            self.assertEqual(connection.execute('SELECT COUNT(*) FROM tickets').fetchone()[0], 2)
+
+    def test_legacy_category_filter_is_exact_and_parameterized(self):
+        with app.app_context():
+            db().execute("INSERT INTO rooms VALUES (1,'А','101')")
+            db().executemany("INSERT INTO tickets(description,category,room_id) VALUES (?,?,1)",
+                             [('legacy match', ' Другое '), ('trimmed other', 'Другое'),
+                              ('sql match', "' OR 1=1 --")])
+            db().commit()
+        self.login()
+        for category, expected in [(' Другое ', 'legacy match'), ("' OR 1=1 --", 'sql match')]:
+            with patch('main.render_template', return_value='') as render:
+                self.client.get('/admin', query_string={'category': category, 'building': ' А ', 'room_id': '1', 'status': 'Новая'})
+                self.assertEqual([r['description'] for r in render.call_args.kwargs['items']], [expected])

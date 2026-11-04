@@ -184,3 +184,40 @@ test('repeated identical addition is not duplicated', async()=>{
   await message(h,'Пожар и дым'); await message(h,'Пожар и дым');
   assert.equal(h.ids['chat-description'].value,'Не горит свет\nПожар и дым');
 });
+
+test('danger requires manual category, persists choice, and never assumes Other', async()=>{
+  const store={}; const h=harness({qr:'1',store,response:{type:'danger',category:'Другое',answer:'Отойдите'}});
+  await message(h,'Искрит провод');
+  assert.equal(h.ids['chat-category'].value,'');
+  // Call the handler directly: a disabled button alone is insufficient protection.
+  await h.ids['chat-send-ticket'].emit('click');
+  assert.equal(h.calls.filter(c=>c.url==='/').length,0);
+  const restored=harness({store});
+  assert.equal(restored.ids['chat-category'].value,'');
+  restored.ids['chat-category'].value='Электрика';
+  await restored.ids['chat-category'].emit('change');
+  const chosen=harness({store});
+  assert.equal(chosen.ids['chat-category'].value,'Электрика');
+  await chosen.ids['chat-send-ticket'].click();
+  assert.equal(chosen.calls.filter(c=>c.url==='/').length,1);
+});
+
+test('legacy danger draft does not restore an implicit Other category', async()=>{
+  const store={'college-chat-1':JSON.stringify({transcript:[],requestKey:'uuid',room:'1',
+    draft:{type:'danger',category:'Другое',draft:'Искрит провод'}})};
+  const h=harness({store});
+  assert.equal(h.ids['chat-category'].value,'');
+  await h.ids['chat-send-ticket'].emit('click');
+  assert.equal(h.calls.length,0);
+});
+
+test('disabled, removed, and disabled-select categories cannot submit even via handler', async()=>{
+  for (const mode of ['disabled','removed','select']) {
+    const h=harness({qr:'1'}); await message(h,'Сломалось');
+    if (mode==='disabled') h.ids['chat-category'].options[1].disabled=true;
+    if (mode==='removed') h.ids['chat-category'].options.splice(1,1);
+    if (mode==='select') h.ids['chat-category'].disabled=true;
+    await h.ids['chat-send-ticket'].emit('click');
+    assert.equal(h.calls.filter(c=>c.url==='/').length,0,mode);
+  }
+});

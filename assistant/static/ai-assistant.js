@@ -26,9 +26,14 @@
     save();
     p.scrollIntoView({block: 'nearest'});
   }
+  function validCategory(value) {
+    return !category.disabled && Array.from(category.options).some(option =>
+      option.value && option.value === value && !option.disabled);
+  }
   function showDraft() {
     description.value = draft.draft || '';
-    category.value = draft.category || 'Другое';
+    if (draft.type === 'danger' && !draft.categoryChosen) draft.category = '';
+    category.value = validCategory(draft.category) ? draft.category : '';
     locationBox.hidden = false;
   }
   function updateDraft() {
@@ -41,7 +46,7 @@
     if (!draft || busy || pending) return;
     if (draft.overflow) { say('Не всё сообщение поместилось в описание. Отредактируйте описание, добавьте важные сведения и проверьте его перед отправкой.'); return; }
     if (!location.value) { say('Выберите место из списка, чтобы я смог отправить заявку.'); return; }
-    if (!description.value.trim() || !category.value) { say('Укажите описание и категорию заявки.'); return; }
+    if (!description.value.trim() || !validCategory(category.value)) { say('Укажите описание и категорию заявки.'); return; }
     updateDraft();
     busy = true; pending = true; send.disabled = submit.disabled = true;
     const selected = location.selectedOptions[0];
@@ -80,7 +85,7 @@
     const notifyIntent = /(?:сообщ|отправ|переда|администратор|сотрудник)/i.test(text);
     if (!draft && notifyIntent) {
       const previous = [...transcript].reverse().find(entry => entry.who === 'user' && /искр|дым|гар[ьи]|горит|пожар|провод|удар.*ток/i.test(entry.text));
-      if (previous) { draft = {type:'danger', category:'Другое', draft:previous.text}; showDraft(); }
+      if (previous) { draft = {type:'danger', category:'', draft:previous.text}; showDraft(); }
     }
     if (draft) {
       // Every new message must be assessed before interpreting it as a room.
@@ -136,7 +141,7 @@
       if (data.question) say(data.question);
       if (data.source) say(`Источник: ${data.source}`);
       if (data.type === 'danger') {
-        draft = {type:'danger', category:'Другое', draft:combined};
+        draft = {type:'danger', category:'', draft:combined};
         const qrRoom = form.elements.room_id.value;
         if (qrRoom && Array.from(location.options).some(o => o.value === qrRoom)) location.value = qrRoom;
         showDraft();
@@ -162,7 +167,10 @@
   });
   location.addEventListener('change', save);
   description.addEventListener('input', () => { if (draft) draft.overflow = false; updateDraft(); });
-  category.addEventListener('change', updateDraft);
+  category.addEventListener('change', () => {
+    if (draft) draft.categoryChosen = validCategory(category.value);
+    updateDraft();
+  });
   submit.addEventListener('click', createTicket);
   reset.addEventListener('click', () => { sessionStorage.removeItem(storageKey); window.location.href = '/'; });
   try {
