@@ -21,7 +21,26 @@
       <p class="copy-status" id="copy-status" role="status"></p>
       <noscript><p>Выделите и скопируйте ссылку из поля выше.</p></noscript>
     </section>
-    <p class="form-note">Отслеживание статуса пока недоступно. Ссылка открывает подтверждение создания заявки.</p>
+    <section aria-label="Данные заявки">
+      <h2>Данные заявки</h2>
+      <dl>
+        <dt>Дата создания</dt><dd>{{ item.created_at }} (UTC)</dd>
+        <dt>Описание</dt><dd>{{ item.description }}</dd>
+        <dt>Категория</dt><dd>{{ item.category }}</dd>
+        <dt>Помещение</dt><dd>{{ item.building }}, {{ item.room }}</dd>
+        <dt>Текущий статус</dt><dd>{{ 'Решена' if item.status == 'Закрыта' else item.status }}</dd>
+      </dl>
+    </section>
+    <section aria-label="История заявки">
+      <h2>История заявки</h2>
+      {% if history %}
+      <ol>
+        {% for entry in history %}
+        <li><time>{{ entry.date }} (UTC)</time> — {{ entry.change }}{% if entry.comment %}<p>{{ entry.comment }}</p>{% endif %}</li>
+        {% endfor %}
+      </ol>
+      {% else %}<p>История пока пуста.</p>{% endif %}
+    </section>
     <a href="{{ url_for('index') }}">Подать ещё одну заявку</a>
   </main>
 </body>
