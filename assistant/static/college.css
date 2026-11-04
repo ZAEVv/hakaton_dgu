@@ -6,6 +6,11 @@ body { background:var(--canvas); color:var(--ink); }
 .site-header .brand, .site-header a, .site-header nav { color:#fff; }
 .service-mark { background:#2563eb; color:#fff; border-radius:14px; width:48px; height:48px; font-size:1rem; }
 .site-header .brand small { color:#cbd5e1; }
+/* A compact, legible control against the institutional masthead. */
+.site-header .theme-switch { gap:2px; padding:3px; border:1px solid #7386a7; border-radius:10px; background:#233557; }
+.site-header .theme-switch button { min-height:40px; padding:6px 10px; border:1px solid transparent; border-radius:7px; background:transparent; color:#e1eafa; font-weight:600; white-space:nowrap; }
+.site-header .theme-switch button[aria-pressed="true"], .site-header .theme-switch button[aria-pressed="true"]:hover:not(:disabled) { background:#fff; border-color:#fff; color:#172446; }
+.site-header .theme-switch button[aria-pressed="false"]:hover:not(:disabled) { background:#344b70; color:#fff; }
 .account-bar { background:#fff; border-bottom:1px solid var(--line); }
 :root[data-theme="dark"] .account-bar { background:var(--paper); }
 button, .action-link { border-radius:999px; }
@@ -23,13 +28,15 @@ body.auth-page { --auth-canvas:#e2e8f0; --auth-card:#fff; --auth-ink:#172446; --
 :root[data-theme="dark"] body.auth-page { --auth-canvas:#0d172b; --auth-card:#192945; --auth-ink:#f1f5ff; --auth-muted:#c2cee1; --auth-line:#8299b8; --auth-accent:#a8c8ff; --auth-accent-hover:#d7e5ff; --auth-on-accent:#fff; }
 .auth-page main, .staff-site.auth-page main { width:min(1220px, calc(100% - 48px)); margin:clamp(28px,6vh,72px) auto; }
 .auth-page .auth-layout { display:grid; grid-template-columns:1fr 1fr; gap:24px; align-items:stretch; }
-.auth-page .campus-panel { position:relative; display:flex; flex-direction:column; align-items:flex-start; justify-content:center; overflow:hidden; min-height:580px; padding:clamp(32px,5vw,70px); border-radius:24px; background:#172446; color:#fff; font-size:1rem; text-transform:none; letter-spacing:normal; }
-.auth-page .campus-panel::after { content:""; position:absolute; width:340px; height:340px; right:-130px; bottom:-140px; border:55px solid #2563eb; border-radius:50%; opacity:.25; pointer-events:none; }
+.auth-page .campus-panel { position:relative; display:flex; flex-direction:column; align-items:flex-start; justify-content:center; overflow:hidden; min-height:580px; padding:clamp(32px,5vw,70px); border:1px solid #bac8da; border-radius:24px; background:#dbe4ef; color:#172446; font-size:1rem; text-transform:none; letter-spacing:normal; }
+:root[data-theme="dark"] .auth-page .campus-panel { background:#253a58; border-color:#506583; color:#f1f5ff; }
 .auth-page .campus-panel > * { position:relative; z-index:1; }
-.auth-page .campus-kicker { color:#a9c8ff; font-size:.8rem; letter-spacing:.12em; text-transform:uppercase; }
-.auth-page .campus-panel .campus-title { display:block; max-width:11ch; margin:28px 0; color:#fff; font-size:clamp(2.8rem,5vw,4.6rem); font-weight:800; line-height:1.04; letter-spacing:-.045em; }
-.auth-page .campus-panel .campus-description { display:block; max-width:38ch; margin:0; color:#d7e2f2; font-size:1.05rem; line-height:1.6; }
-.auth-page .campus-caption { display:block; margin-top:60px; color:#d7e2f2; text-align:left; font-size:.82rem; }
+.auth-page .campus-kicker { color:#254d85; font-size:.8rem; letter-spacing:.12em; text-transform:uppercase; }
+.auth-page .campus-panel .campus-title { display:block; max-width:11ch; margin:28px 0; color:inherit; font-size:clamp(2.8rem,5vw,4.6rem); font-weight:800; line-height:1.04; letter-spacing:-.045em; }
+.auth-page .campus-panel .campus-description { display:block; max-width:38ch; margin:0; color:#344b68; font-size:1.05rem; line-height:1.6; }
+.auth-page .campus-caption { display:block; margin-top:60px; color:#344b68; text-align:left; font-size:.82rem; }
+:root[data-theme="dark"] .auth-page .campus-kicker { color:#bdd5ff; }
+:root[data-theme="dark"] .auth-page .campus-description, :root[data-theme="dark"] .auth-page .campus-caption { color:#d7e2f2; }
 .auth-page .auth-form { border:1px solid var(--line); border-radius:24px; padding:clamp(30px,5vw,64px); box-shadow:0 20px 60px rgb(23 36 70 / 9%); }
 .auth-page .auth-form h1 { color:var(--auth-ink); }
 .auth-page .auth-form input:not([type="hidden"]) { border-radius:12px; }
