@@ -1,6 +1,8 @@
 {% extends 'staff_base.html' %}
 {% block title %}Вход сотрудника{% endblock %}
+{% block body_class %}auth-page{% endblock %}
 {% block content %}
+<div class="auth-layout">{% include 'campus_panel.html' %}<div class="auth-form">
 <h1>Вход сотрудника</h1>
 <p>Войдите, чтобы работать с заявками службы колледжа.</p>
 {% if error %}<p role="alert">{{ error }}</p>{% endif %}
@@ -8,4 +10,5 @@
 <label>Логин <input name="login" autocomplete="username" required maxlength="80"></label>
 <label>Пароль <input type="password" name="password" autocomplete="current-password" required></label><button>Войти</button></form>
 <p><a href="{{ url_for('applicant_login') }}">Вход в личный кабинет заявителя</a></p>
+</div></div>
 {% endblock %}

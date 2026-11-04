@@ -2,9 +2,10 @@
 {% block title %}Новая заявка — Служба колледжа{% endblock %}
 {% block scripts %}<script src="{{ url_for('static', filename='ticket-form.js') }}" defer></script><script src="{{ url_for('static', filename='ai-assistant.js') }}" defer></script>{% endblock %}
 {% block content %}
-    <h1>Что нужно исправить?</h1>
+    <div class="page-heading"><h1>Что нужно исправить?</h1>
     <p class="intro">Сообщите о проблеме в колледже. Укажите место и опишите, что случилось.</p>
-    <p class="error" role="note"><strong>Опасная ситуация:</strong> при дыме, искрах или запахе гари отойдите, не трогайте оборудование и немедленно сообщите ответственному сотруднику или обратитесь в экстренную службу по ситуации.</p>
+    </div>
+    <p class="safety-note" role="note"><strong>Опасная ситуация?</strong> При дыме, искрах или запахе гари отойдите, не трогайте оборудование и немедленно сообщите ответственному сотруднику или обратитесь в экстренную службу по ситуации.</p>
     {% if error %}<div class="error" role="alert" tabindex="-1" id="form-error"><strong>Заявка не отправлена</strong><p>{{ error }}</p><p>Поля сохранены. Если прикладывали фото, выберите его заново.</p></div>{% endif %}
     {% if qr_notice %}<p class="form-note" role="status">{{ qr_notice }}</p>{% endif %}
     {% if not rooms %}<p class="error" role="alert">Нет доступных помещений. Обратитесь к сотруднику колледжа.</p>{% endif %}

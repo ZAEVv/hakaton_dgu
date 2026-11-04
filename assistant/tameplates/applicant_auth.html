@@ -1,6 +1,8 @@
 {% extends 'applicant_base.html' %}
 {% block title %}{{ 'Регистрация' if registering else 'Вход в личный кабинет' }} — Служба колледжа{% endblock %}
+{% block body_class %}auth-page{% endblock %}
 {% block content %}
+<div class="auth-layout">{% include 'campus_panel.html' %}<div class="auth-form">
 <h1>{{ 'Создать аккаунт' if registering else 'Личный кабинет' }}</h1>
 <p class="intro">{{ 'Укажите свои данные. Все новые заявки будут сохранены в вашем аккаунте.' if registering else 'Войдите, чтобы подать заявку, узнать её статус или ответить сотруднику.' }}</p>
 {% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
@@ -15,4 +17,5 @@
 <button>{{ 'Зарегистрироваться' if registering else 'Войти' }}</button>
 </form>
 <p>{% if registering %}Уже есть аккаунт? <a href="{{ url_for('applicant_login') }}">Войти</a>{% else %}Первый раз здесь? <a href="{{ url_for('applicant_register') }}">Создать аккаунт</a>{% endif %}</p>
+</div></div>
 {% endblock %}
