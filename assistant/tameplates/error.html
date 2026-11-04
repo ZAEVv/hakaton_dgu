@@ -5,7 +5,7 @@
   <section class="surface" aria-labelledby="error-heading">
     <h1 id="error-heading">Не удалось выполнить действие</h1>
     <p class="error" role="alert">{{ message }}</p>
-    <nav aria-label="Дальнейшие действия"><a href="{{ url_for('account') }}">Личный кабинет</a> · <a href="{{ url_for('index') }}">Вернуться к форме</a></nav>
+    <nav class="error-actions" aria-label="Дальнейшие действия"><a class="action-link" href="{{ url_for('index') }}">Вернуться к форме</a><a href="{{ url_for('account') }}">Личный кабинет</a></nav>
   </section>
 </div>
 {% endblock %}

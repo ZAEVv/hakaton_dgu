@@ -3,11 +3,12 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Личный кабинет — Служба колледжа{% endblock %}</title>
-  {% include 'theme_head.html' %}{% block scripts %}{% endblock %}
+  {% include 'theme_head.html' %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='distinctive-workspace.css') }}">{% block scripts %}{% endblock %}
 </head>
 <body class="applicant-site {% block body_class %}{% endblock %}">
   <a class="skip-link" href="#main-content">Перейти к содержимому</a>
-  <header class="site-header">
+  <div class="dw-shell"><header class="site-header">
     <a class="brand" href="{{ url_for('index') }}"><span class="service-mark" aria-hidden="true">СК</span><span>Служба колледжа<small>Заявки и помощь</small></span></a>
     {% include 'theme_switch.html' %}
   </header>
@@ -20,6 +21,6 @@
   </nav>
   {% endif %}
   <main id="main-content" tabindex="-1"><div class="site-content">{% block content %}{% endblock %}</div></main>
-  <footer class="site-footer"><span>Служба заявок колледжа</span><a href="{{ url_for('login') }}">Вход сотрудника</a></footer>
+  </div><footer class="site-footer"><span>Служба заявок колледжа</span><a href="{{ url_for('login') }}">Вход сотрудника</a></footer>
 </body>
 </html>

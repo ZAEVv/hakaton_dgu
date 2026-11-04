@@ -1,0 +1,72 @@
+/* Working surfaces: a framed sheet and a persistent navigation rail. */
+.dw-shell { flex: 1; display: grid; grid-template-columns: 15rem minmax(0,1fr); grid-template-rows: auto 1fr; min-width: 0; }
+.dw-shell .site-header { grid-column: 1; grid-row: 1 / 3; align-content: start; align-items: stretch; display: flex; flex-direction: column; gap: 1.5rem; padding: 1.5rem 1rem; background: var(--ground); color: var(--ink); }
+.dw-shell .site-header .brand { color: var(--ink); }
+.dw-shell .site-header .account-nav { display: flex; flex-direction: column; align-items: stretch; gap: .35rem; margin: 0; }
+.dw-shell .account-nav a, .dw-shell .account-nav button { display: block; text-align: left; color: var(--ink); padding: .65rem .75rem; border-radius: 4px; }
+.dw-shell .account-nav a[aria-current="page"] { background: var(--surface-alt); font-weight: 700; text-decoration: underline; }
+.dw-shell main { grid-column: 2; grid-row: 1 / 3; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; margin: .5rem .5rem .5rem 0; }
+.dw-shell .site-content { width: min(100% - 3rem, 1300px); padding-block: 2rem 4rem; }
+.applicant-site .account-nav { grid-column: 1; grid-row: 1 / 3; align-self: start; z-index: 1; margin: 10rem 1rem 0; display: flex; flex-direction: column; align-items: stretch; gap: .35rem; }
+.applicant-site .dw-shell .site-header { padding-bottom: 12rem; }
+.dw-shell .site-content .page-heading, .dw-shell .site-content .staff-heading { border-bottom: 1px solid var(--line); padding-bottom: 1rem; margin-bottom: 1.5rem; }
+.dw-shell .site-content h1 { font-size: clamp(1.8rem, 2.5vw, 2.6rem); }
+.dw-shell .site-content .surface, .dw-shell .site-content .card { box-shadow: none; }
+.layout-admin { display: flex; flex-direction: column; gap: 2rem; }
+.layout-admin .statistics { order: 2; border-top: 1px solid var(--line); padding-top: 2rem; }
+.layout-admin .filters { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: .75rem; align-items: end; }
+.layout-admin .table-wrap { max-width: 100%; }
+.layout-index .request-workspace { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(18rem, .8fr); gap: 2rem; align-items: start; }
+.layout-index #manual-form { min-width: 0; }
+.layout-admin-ticket > .layout-grid { grid-template-columns: minmax(0,1.4fr) minmax(18rem,.8fr); align-items: start; }
+.layout-categories > .layout-grid, .layout-employees > .layout-grid, .layout-qr-codes > .layout-grid { grid-template-columns: minmax(15rem,.7fr) minmax(0,1.3fr); align-items: start; }
+.layout-account .ticket-list { display: block; border-top: 1px solid var(--line); }
+.layout-account .ticket-list .card { border: 0; border-bottom: 1px solid var(--line); border-radius: 0; padding: 1.2rem 0; }
+.layout-created > .layout-grid { grid-template-columns: minmax(0,1.4fr) minmax(14rem,.6fr); }
+.dw-shell .site-content table { font-variant-numeric: tabular-nums; }
+@media (max-width: 900px) {
+ .dw-shell { display: block; }
+ .dw-shell .site-header { display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; padding: 1rem; }
+ .dw-shell .site-header .account-nav, .applicant-site .account-nav { width: 100%; display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; margin: 0; padding: .5rem 1rem; }
+ .applicant-site .dw-shell .site-header { padding-bottom: 1rem; }
+ .dw-shell main { margin: 0; border-radius: 0; border-inline: 0; }
+ .dw-shell .site-content { width: calc(100% - 2rem); }
+ .layout-admin .filters { grid-template-columns: repeat(2,minmax(0,1fr)); }
+ .layout-index .request-workspace, .layout-admin-ticket > .layout-grid, .layout-categories > .layout-grid, .layout-employees > .layout-grid, .layout-qr-codes > .layout-grid, .layout-created > .layout-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 420px) { .layout-admin .filters { grid-template-columns: 1fr; } }
+
+.layout-index .assistant-heading { display: block; }
+.layout-index .assistant-heading h2 { margin-bottom: .35rem; }
+
+/* Content-specific working layouts. */
+.ticket-row { display:grid; grid-template-columns:minmax(10rem,.35fr) minmax(0,1fr); gap:1.25rem; padding:1.1rem 0; border-bottom:1px solid var(--line); }
+.ticket-row-status { display:flex; flex-direction:column; align-items:flex-start; gap:.5rem; }
+.ticket-row-main h2 { margin:0 0 .35rem; font-size:1.1rem; }
+.ticket-row-main p { margin:.35rem 0; }
+.ticket-row-meta, .ticket-row-status small { color:var(--muted); }
+.ticket-detail-grid { display:grid; grid-template-columns:minmax(0,1.5fr) minmax(13rem,.6fr); gap:1rem; }
+.ticket-conversation { max-width:60rem; margin-top:2rem; }
+.ticket-conversation > section + section { margin-top:1rem; }
+.ticket-detail-grid dl { display:grid; grid-template-columns:minmax(8rem,.3fr) minmax(0,1fr); gap:.5rem 1rem; }
+.ticket-detail-grid dd { margin:0; }
+.error-actions { display:flex; flex-wrap:wrap; gap:1rem; align-items:center; margin-top:1.5rem; }
+.queue-filters { margin:1rem 0; padding:1rem; background:var(--surface-alt); border-radius:6px; }
+.queue-filters summary, .password-reset summary { cursor:pointer; font-weight:700; }
+.queue-filters .filters { margin-top:1rem; }
+.layout-admin table th, .layout-admin table td { padding:.65rem .7rem; vertical-align:top; }
+.ticket-workbench > div { min-width:0; }
+.ticket-workbench > div > section + section { margin-top:1rem; }
+.applicant-record { display:grid; grid-template-columns:minmax(14rem,.6fr) minmax(0,1.4fr); gap:1rem; align-items:start; }
+.applicant-ticket-list { padding-left:1.25rem; }
+.applicant-ticket-list li { padding:.6rem 0; border-bottom:1px solid var(--line); }
+.management-row { padding:1rem 0; border-bottom:1px solid var(--line); overflow-wrap:anywhere; }
+.management-row h3 { margin:0 0 .35rem; }
+.management-row > form, .management-row > details { margin-top:.75rem; }
+.management-row img { max-width:100%; height:auto; background:#fff; }
+.password-reset form { margin-top:.75rem; }
+.workspace-caption { font-weight:700; margin-bottom:.25rem; }
+.dw-shell .site-content :is(p,dd,td,li,h1,h2,h3,a,span) { overflow-wrap:anywhere; }
+.dw-shell .site-content :is(button,summary,a,input,select,textarea):focus-visible { outline:3px solid var(--focus, #1871b9); outline-offset:3px; }
+@media (max-width:900px) { .ticket-detail-grid, .applicant-record { grid-template-columns:1fr; } }
+@media (max-width:600px) { .ticket-row { grid-template-columns:1fr; gap:.5rem; } .ticket-row-status { flex-direction:row; align-items:center; flex-wrap:wrap; } .ticket-detail-grid dl { grid-template-columns:1fr; gap:.25rem; } .ticket-detail-grid dd { margin-bottom:.65rem; } }

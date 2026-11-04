@@ -4,13 +4,13 @@
 <div class="layout-categories">
 <header class="page-heading"><h1>Категории обращений</h1><p>Названия в ранее созданных заявках сохраняются. Неактивные категории недоступны для новых заявок.</p></header>
 {% if error %}<p role="alert" class="error">{{ error }}</p>{% endif %}
-<div class="layout-grid">
+<div class="layout-grid management-workbench categories-workbench">
   <section class="surface"><h2>Добавить категорию</h2>
     <form method="post" class="stack"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="action" value="create"><label class="field">Название<input name="name" maxlength="120" required></label><button>Добавить</button></form>
   </section>
   <section aria-labelledby="categories-list"><h2 id="categories-list">Список категорий</h2>
   {% for category in categories %}
-    <article class="card"><h3>{{ category.name }}</h3><p class="status">{{ 'активна' if category.is_active else 'неактивна' }}</p>
+    <article class="management-row"><h3>{{ category.name }}</h3><p class="status">{{ 'активна' if category.is_active else 'неактивна' }}</p>
       <form method="post" class="inline"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="action" value="rename"><input type="hidden" name="category_id" value="{{ category.id }}"><label class="field">Название<input name="name" value="{{ category.name }}" maxlength="120" required></label><button>Сохранить</button></form>
       <form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="category_id" value="{{ category.id }}"><input type="hidden" name="action" value="{{ 'disable' if category.is_active else 'enable' }}"><button>{{ 'Отключить' if category.is_active else 'Включить' }}</button></form>
     </article>

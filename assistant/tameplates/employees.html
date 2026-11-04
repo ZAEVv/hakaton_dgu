@@ -4,7 +4,7 @@
 <div class="layout-employees">
 <header class="page-heading"><h1>Сотрудники</h1></header>
 {% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
-<div class="layout-grid">
+<div class="layout-grid management-workbench employees-workbench">
   <section class="surface"><h2>Добавить исполнителя</h2>
     <form method="post" class="stack"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="action" value="create">
       <label class="field">Имя<input name="name" required maxlength="120"></label>
@@ -14,9 +14,9 @@
   </section>
   <section aria-labelledby="employee-list"><h2 id="employee-list">Список сотрудников</h2>
   {% for e in employees %}
-    <article class="card"><h3>{{ e.name }}</h3><p>{{ e.login }} · {{ 'Администратор' if e.role == 'admin' else 'Исполнитель' }} · <span class="status">{{ 'Активен' if e.is_active else 'Заблокирован' }}</span></p>
+    <article class="management-row"><h3>{{ e.name }}</h3><p>{{ e.login }} · {{ 'Администратор' if e.role == 'admin' else 'Исполнитель' }} · <span class="status">{{ 'Активен' if e.is_active else 'Заблокирован' }}</span></p>
       {% if e.id != current_employee.id %}<form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="employee_id" value="{{ e.id }}"><input type="hidden" name="action" value="{{ 'block' if e.is_active else 'unblock' }}"><button>{{ 'Заблокировать' if e.is_active else 'Разблокировать' }}</button></form>{% endif %}
-      <form method="post" class="inline"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="employee_id" value="{{ e.id }}"><input type="hidden" name="action" value="reset_password"><label class="field">Новый пароль<input type="password" name="password" required minlength="10" maxlength="256" autocomplete="new-password"></label><button>Сбросить пароль</button></form>
+      <details class="password-reset"><summary>Сбросить пароль</summary><form method="post" class="inline"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="employee_id" value="{{ e.id }}"><input type="hidden" name="action" value="reset_password"><label class="field">Новый пароль<input type="password" name="password" required minlength="10" maxlength="256" autocomplete="new-password"></label><button>Сбросить пароль</button></form></details>
     </article>
   {% endfor %}
   </section>

@@ -5,10 +5,11 @@
   <header class="page-heading"><h1>Мои заявки</h1><p>Здесь сохраняются ваши обращения, их статусы и ответы сотрудников.</p><a class="action-link" href="{{ url_for('index') }}">Подать заявку →</a></header>
   <div class="ticket-list">
     {% for item in items %}
-    <article class="card"><h2><a href="{{ url_for('account_ticket', ticket_id=item.id) }}">Заявка № {{ item.id }}</a></h2>
-      <p class="status"><strong>{{ 'Решена' if item.status == 'Закрыта' else item.status }}</strong></p>
+    <article class="ticket-row">
+      <div class="ticket-row-status"><span class="status">{{ 'Решена' if item.status == 'Закрыта' else item.status }}</span><small>{{ item.created_at }} UTC</small></div>
+      <div class="ticket-row-main"><h2><a href="{{ url_for('account_ticket', ticket_id=item.id) }}">Заявка № {{ item.id }}</a></h2>
       <p class="ticket-text">{{ item.description|truncate(180) }}</p>
-      <p>{{ item.created_at }} UTC · {{ item.building }}, {{ item.room }} · {{ item.category }}</p>
+      <p class="ticket-row-meta">{{ item.building }}, {{ item.room }} · {{ item.category }}</p></div>
     </article>
     {% else %}<p>Вы ещё не отправляли заявок. <a href="{{ url_for('index') }}">Сообщить о проблеме</a>.</p>{% endfor %}
   </div>

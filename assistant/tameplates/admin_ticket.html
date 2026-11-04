@@ -3,7 +3,7 @@
 {% block content %}
 <div class="layout-admin-ticket">
 <header class="page-heading"><p><a href="{{ url_for('admin') }}">Все заявки</a></p><h1>Заявка № {{ item.id }}</h1><p>{{ item.created_at }} UTC · {{ item.building }}, {{ item.room }} · {{ item.category }}</p></header>
-<div class="layout-grid">
+<div class="layout-grid ticket-workbench">
   <div>
     <section class="surface" aria-labelledby="ticket-description"><h2 id="ticket-description">Обращение</h2>
       <p class="ticket-description">{{ item.description }}</p>
@@ -15,7 +15,7 @@
       <form method="post" action="{{ url_for('admin_ticket', ticket_id=item.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="version" value="{{ item.version }}"><input type="hidden" name="status" value="В работе"><input type="hidden" name="assignee_id" value="{{ item.assignee_id or current_employee.id }}"><input type="hidden" name="visibility" value="public"><input type="hidden" name="comment" value="Заявка принята, приступаем к работе."><button>Принять в работу и сообщить заявителю</button></form>{% endif %}
     </section>
     <section class="surface"><h2>Фотографии</h2>{% for a in attachments %}<a href="{{ url_for('admin_attachment', attachment_id=a.id) }}">Скачать фото {{ a.id }}</a>{% else %}<p>Нет фотографий</p>{% endfor %}</section>
-    <section class="surface"><h2>История (UTC)</h2><ol class="history">{% for h in history %}<li>{{ h.created_at }} — {{ h.author or 'Заявитель' }} — {{ 'публично' if h.is_public else 'внутреннее' }}: {{ h.change_description }}{% if h.comment %}<p class="ticket-description">{{ h.comment }}</p>{% endif %}</li>{% else %}<li>Изменений пока нет.</li>{% endfor %}</ol></section>
+    <section class="surface ticket-history"><h2>История (UTC)</h2><ol class="history">{% for h in history %}<li>{{ h.created_at }} — {{ h.author or 'Заявитель' }} — {{ 'публично' if h.is_public else 'внутреннее' }}: {{ h.change_description }}{% if h.comment %}<p class="ticket-description">{{ h.comment }}</p>{% endif %}</li>{% else %}<li>Изменений пока нет.</li>{% endfor %}</ol></section>
   </div>
   <div>
   {% if can_edit %}
