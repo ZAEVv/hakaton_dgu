@@ -43,6 +43,14 @@ class AssistantApiTests(unittest.TestCase):
             self.assertEqual(self.send('из розетки идут искры').json['type'], 'danger')
             self.assertEqual(self.client.get('/').status_code, 200)
 
+    def test_server_wide_limit_cannot_be_bypassed_by_another_account(self):
+        with app.app_context():
+            db().execute("INSERT INTO applicants (first_name,last_name,record_book,password_hash) VALUES ('A','B','OTHER','unused')")
+            db().executemany('INSERT INTO assistant_requests (applicant_id) VALUES (2)', [() for _ in range(300)])
+            db().commit()
+        self.assertEqual(self.send('не работает свет').status_code, 429)
+        self.assertEqual(self.send('из розетки идут искры').json['type'], 'danger')
+
     def test_fault_result_can_be_returned_without_creating_ticket(self):
         with patch('main.assist', return_value={'type': 'fault', 'category': 'Электрика', 'draft': 'Не работает свет', 'answer': 'Проверьте заявку', 'question': None, 'source': None}):
             response = self.send('Не работает свет')

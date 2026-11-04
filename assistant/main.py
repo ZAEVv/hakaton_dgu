@@ -10,7 +10,7 @@ from pathlib import Path
 
 from flask import Flask, abort, g, redirect, render_template, request, url_for, session, send_file, jsonify
 from functools import wraps
-from PIL import Image, UnidentifiedImageError
+from PIL import Image, ImageOps, UnidentifiedImageError
 from dotenv import load_dotenv
 from werkzeug.security import check_password_hash, generate_password_hash
 from ai_helper import assist, danger_detected, AssistantUnavailable
@@ -183,11 +183,24 @@ def index():
                         if picture.width * picture.height > 20_000_000:
                             raise ValueError('dimensions')
                         picture.verify()
-                    with Image.open(BytesIO(photo_bytes)) as picture:
-                        picture.load()
                     ext = {'JPEG': '.jpg', 'PNG': '.png', 'WEBP': '.webp'}.get(image_format)
                     if not ext:
                         raise ValueError('format')
+                    with Image.open(BytesIO(photo_bytes)) as picture:
+                        picture.load()
+                        normalized = ImageOps.exif_transpose(picture)
+                        if normalized.mode == 'P':
+                            normalized = normalized.convert('RGBA' if 'transparency' in picture.info and image_format != 'JPEG' else 'RGB')
+                        if image_format == 'JPEG' and normalized.mode not in ('RGB', 'L'):
+                            normalized = normalized.convert('RGB')
+                        # Rebuild the image pixels so metadata such as GPS and EXIF is not retained.
+                        clean = Image.new(normalized.mode, normalized.size)
+                        clean.paste(normalized)
+                        output = BytesIO()
+                        clean.save(output, format=image_format)
+                        photo_bytes = output.getvalue()
+                        if len(photo_bytes) > 4 * 1024 * 1024:
+                            raise ValueError('large')
                 except (UnidentifiedImageError, OSError, ValueError, Image.DecompressionBombError):
                     error = 'Фото должно быть исправным изображением JPEG, PNG или WebP: до 4 МБ и не более 20 мегапикселей.'
                     status_code = 400
@@ -246,7 +259,8 @@ def assistant_api():
         db().execute("DELETE FROM assistant_requests WHERE created_at < datetime('now', '-1 hour')")
         count = db().execute("SELECT COUNT(*) FROM assistant_requests WHERE applicant_id=? AND created_at >= datetime('now', '-1 minute')", (g.applicant['id'],)).fetchone()[0]
         hour_count = db().execute("SELECT COUNT(*) FROM assistant_requests WHERE applicant_id=?", (g.applicant['id'],)).fetchone()[0]
-        if count >= 10 or hour_count >= 60:
+        global_count = db().execute('SELECT COUNT(*) FROM assistant_requests').fetchone()[0]
+        if count >= 10 or hour_count >= 60 or global_count >= 300:
             db().rollback()
             return jsonify(error='Слишком много запросов. Попробуйте позже.'), 429
         db().execute('INSERT INTO assistant_requests (applicant_id) VALUES (?)', (g.applicant['id'],))
@@ -353,6 +367,8 @@ def applicant_register():
     error = None
     if request.method == 'POST':
         check_csrf()
+        if not login_attempt_allowed('registration'):
+            return render_template('applicant_auth.html', registering=True, csrf_token=token, error='Слишком много попыток регистрации. Попробуйте через 10 минут.'), 429
         first_name = request.form.get('first_name', '').strip()
         last_name = request.form.get('last_name', '').strip()
         record_book = record_book_number(request.form.get('record_book', ''))
@@ -364,12 +380,13 @@ def applicant_register():
         elif password != request.form.get('password_confirm', ''):
             error = 'Пароли не совпадают.'
         else:
+            password_hash = generate_password_hash(password)
             db().execute('BEGIN IMMEDIATE')
             if db().execute('SELECT 1 FROM applicants WHERE record_book=?', (record_book,)).fetchone():
                 error = 'Этот логин уже зарегистрирован. Войдите в свой аккаунт.'
             else:
                 applicant_id = db().execute('INSERT INTO applicants (first_name,last_name,record_book,password_hash) VALUES (?,?,?,?)',
-                                            (first_name, last_name, record_book, generate_password_hash(password))).lastrowid
+                                            (first_name, last_name, record_book, password_hash)).lastrowid
                 start_applicant_session(applicant_id)
                 return redirect(url_for('index' if 'pending_qr_room' in session else 'account'))
     return render_template('applicant_auth.html', registering=True, csrf_token=token, error=error), 400 if error else 200
@@ -750,6 +767,11 @@ def login():
             return render_template('login.html', csrf_token=token, error='Слишком много попыток входа. Попробуйте через 10 минут.'), 429
         employee = db().execute('SELECT * FROM employees WHERE login = ?', (request.form.get('login', ''),)).fetchone()
         if employee and employee['is_active'] and check_password_hash(employee['password_hash'], request.form.get('password', '')):
+            db().execute('BEGIN IMMEDIATE')
+            current = db().execute('SELECT password_hash, is_active FROM employees WHERE id=?', (employee['id'],)).fetchone()
+            if not current or not current['is_active'] or current['password_hash'] != employee['password_hash']:
+                db().rollback()
+                return render_template('login.html', csrf_token=token, error='Данные учётной записи изменились. Повторите вход.'), 401
             revoke_browser_sessions()
             db().execute("DELETE FROM employee_sessions WHERE created_at < datetime('now', '-12 hours')")
             auth_token = secrets.token_urlsafe(32)

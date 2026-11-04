@@ -89,6 +89,19 @@ class HelpdeskTests(unittest.TestCase):
             attachment = db().execute('SELECT file_path FROM attachments').fetchone()
             self.assertTrue(Path(attachment['file_path']).is_file())
 
+    def test_uploaded_photo_does_not_keep_exif_metadata(self):
+        photo = io.BytesIO()
+        exif = Image.Exif()
+        exif[270] = 'private metadata'
+        Image.new('RGB', (2, 2)).save(photo, format='JPEG', exif=exif)
+        photo.seek(0)
+        response = self.client.post('/', data={**self.form_data(), 'photo': (photo, 'photo.jpg')})
+        self.assertEqual(response.status_code, 302)
+        with app.app_context():
+            path = db().execute('SELECT file_path FROM attachments').fetchone()[0]
+        with Image.open(path) as result:
+            self.assertNotIn(270, result.getexif())
+
     def test_reject_non_image(self):
         response = self.client.post('/', data={**self.form_data(), 'photo': (io.BytesIO(b'not a photo'), 'photo.png')})
         self.assertIn('Фото должно быть'.encode(), response.data)
