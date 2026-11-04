@@ -4,4 +4,4 @@
 {% if current_employee %}<span>{{ current_employee.name }} · {{ 'Администратор' if current_employee.role == 'admin' else 'Исполнитель' }}</span>
 {% if current_employee.role == 'admin' %}<a href="{{ url_for('manage_categories') }}">Категории</a> <a href="{{ url_for('manage_employees') }}">Сотрудники</a> <a href="{{ url_for('admin_qr') }}">Помещения и QR</a>{% endif %}
 <form method="post" action="{{ url_for('logout') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button>Выйти</button></form>{% endif %}
-</nav></header><main id="main-content" tabindex="-1">{% block content %}{% endblock %}</main><footer><span>Служба заявок колледжа</span><a href="{{ url_for('applicant_login') }}">Личный кабинет заявителя</a></footer></body></html>
+</nav></header><main id="main-content" tabindex="-1"><div class="site-content">{% block content %}{% endblock %}</div></main><footer><span>Служба заявок колледжа</span><a href="{{ url_for('applicant_login') }}">Личный кабинет заявителя</a></footer></body></html>

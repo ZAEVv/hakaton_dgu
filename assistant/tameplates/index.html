@@ -2,6 +2,7 @@
 {% block title %}Новая заявка — Служба колледжа{% endblock %}
 {% block scripts %}<script src="{{ url_for('static', filename='ticket-form.js') }}" defer></script><script src="{{ url_for('static', filename='ai-assistant.js') }}" defer></script>{% endblock %}
 {% block content %}
+<div class="layout-index">
     <div class="page-heading"><p class="eyebrow">Сервис обращений / Новая заявка</p><h1>Что нужно исправить?</h1>
     <p class="intro">Сообщите о проблеме в колледже. Укажите место и опишите, что случилось.</p>
     </div>
@@ -61,4 +62,5 @@
     </details>
     <aside class="request-assistance" aria-label="Помощь с заявкой">{% include 'ai_assistant.html' %}</aside>
     </div>
+</div>
 {% endblock %}

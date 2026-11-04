@@ -1,10 +1,13 @@
 {% extends 'staff_base.html' %}
 {% block title %}QR-коды помещений{% endblock %}
 {% block content %}
+<div class="layout-qr-codes">
 <h1>QR-коды помещений</h1>
 <p>Откройте эту страницу по адресу, доступному телефону: QR-коды содержат адрес текущего сервера.</p>
 {% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+<div class="management-create">
 <h2>Добавить место</h2><form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><label>Корпус <input name="building" maxlength="120" required></label><label>Название помещения или зоны <input name="name" maxlength="120" required></label><button>Добавить</button></form>
+</div>
 {% for room in rooms %}
 <section>
   <h2>{{ room.building }} — {{ room.name }}</h2>
@@ -13,4 +16,5 @@
   <p><a href="{{ url_for('admin_qr_image', room_id=room.id) }}" download="room-{{ room.id }}.png">Скачать QR-код</a></p>
 </section>
 {% else %}<p>Нет помещений для создания QR-кодов.</p>{% endfor %}
+</div>
 {% endblock %}

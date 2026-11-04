@@ -1,12 +1,15 @@
 {% extends 'staff_base.html' %}
 {% block title %}Заявка № {{ item.id }}{% endblock %}
 {% block content %}
+<div class="layout-admin-ticket">
+<div class="ticket-overview">
 <h1>Заявка № {{ item.id }}</h1>
 <p><strong>Заявитель:</strong> {% if item.applicant_id %}<a href="{{ url_for('admin_applicant', applicant_id=item.applicant_id) }}">{{ item.last_name }} {{ item.first_name }}</a> · Логин {{ item.record_book }}{% else %}Старая заявка без аккаунта{% endif %}</p>
 <p>{{ item.created_at }} UTC · {{ item.building }}, {{ item.room }} · {{ item.category }}</p>
 <p class="ticket-description">{{ item.description }}</p>
 <p><strong>Статус:</strong> {{ 'Решена' if item.status == 'Закрыта' else item.status }}</p>
 <p><strong>Исполнитель:</strong> {% for e in employees if e.id == item.assignee_id %}{{ e.name }}{% else %}Не назначен{% endfor %}</p>
+</div>
 <section><h2>Фотографии</h2>
 {% for a in attachments %}<a href="{{ url_for('admin_attachment', attachment_id=a.id) }}">Скачать фото {{ a.id }}</a>{% else %}<p>Нет фотографий</p>{% endfor %}
 </section>
@@ -36,4 +39,5 @@
 </form></section>
 {% else %}<p>Изменять заявку может администратор или назначенный исполнитель.</p>{% endif %}
 <section><h2>История (UTC)</h2><ol class="history">{% for h in history %}<li>{{ h.created_at }} — {{ h.author or 'Заявитель' }} — {{ 'публично' if h.is_public else 'внутреннее' }}: {{ h.change_description }}{% if h.comment %}<p class="ticket-description">{{ h.comment }}</p>{% endif %}</li>{% else %}<li>Изменений пока нет.</li>{% endfor %}</ol></section>
+</div>
 {% endblock %}

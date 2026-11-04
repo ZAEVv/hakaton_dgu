@@ -1,15 +1,19 @@
 {% extends 'staff_base.html' %}
 {% block title %}Сотрудники{% endblock %}
 {% block content %}
+<div class="layout-employees">
 <h1>Сотрудники</h1>
 {% if error %}<p role="alert">{{ error }}</p>{% endif %}
+<div class="management-create">
 <section><h2>Добавить исполнителя</h2>
 <form method="post" class="inline"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="action" value="create">
 <label>Имя <input name="name" required maxlength="120"></label><label>Логин <input name="login" required maxlength="80" autocomplete="off"></label><label>Пароль <input type="password" name="password" required minlength="10" maxlength="256" autocomplete="new-password"></label><button>Создать сотрудника</button></form>
 </section>
+</div>
 {% for e in employees %}<section><h2>{{ e.name }}</h2><p>{{ e.login }} · {{ 'Администратор' if e.role == 'admin' else 'Исполнитель' }} · {{ 'Активен' if e.is_active else 'Заблокирован' }}</p>
 {% if e.id != current_employee.id %}<form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="employee_id" value="{{ e.id }}"><input type="hidden" name="action" value="{{ 'block' if e.is_active else 'unblock' }}"><button>{{ 'Заблокировать' if e.is_active else 'Разблокировать' }}</button></form>{% endif %}
 <form method="post" class="inline"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="employee_id" value="{{ e.id }}"><input type="hidden" name="action" value="reset_password"><label>Новый пароль <input type="password" name="password" required minlength="10" maxlength="256" autocomplete="new-password"></label><button>Сбросить пароль</button></form>
 </section>{% endfor %}
 <section><h2>История управления сотрудниками (UTC)</h2><ol>{% for h in history %}<li>{{ h.created_at }} — {{ h.actor_name }} — {{ h.employee_name }}: {{ h.action }}</li>{% else %}<li>Действий пока нет.</li>{% endfor %}</ol></section>
+</div>
 {% endblock %}
