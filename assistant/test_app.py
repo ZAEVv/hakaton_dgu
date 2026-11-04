@@ -117,8 +117,11 @@ class HelpdeskTests(unittest.TestCase):
             self.assertEqual(response.status_code, 302)
         for contents in (b'x' * (4 * 1024 * 1024 + 1), b'GIF89a', b'<svg></svg>'):
             response = self.client.post('/', data={**self.form_data(), 'photo': (io.BytesIO(contents), 'image.jpg')})
+            # Werkzeug may spool large request bodies to temporary files.
+            self.addCleanup(response.request.environ['wsgi.input'].close)
             self.assertEqual(response.status_code, 400)
         response = self.client.post('/', data={**self.form_data(), 'photo': (io.BytesIO(b'x' * (5 * 1024 * 1024)), 'big.png')})
+        self.addCleanup(response.request.environ['wsgi.input'].close)
         self.assertEqual(response.status_code, 413)
         with app.app_context():
             self.assertEqual(db().execute('SELECT count(*) FROM tickets').fetchone()[0], 3)
