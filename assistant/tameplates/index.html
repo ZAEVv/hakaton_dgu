@@ -9,6 +9,7 @@
     {% if qr_notice %}<p class="form-note" role="status">{{ qr_notice }}</p>{% endif %}
     {% if not rooms %}<p class="error" role="alert">Нет доступных помещений. Обратитесь к сотруднику колледжа.</p>{% endif %}
     {% include 'ai_assistant.html' %}
+    <details id="manual-form"><summary>Заполнить заявку вручную или прикрепить фото</summary>
     <p class="form-note">Все поля обязательны, кроме фотографии.</p>
     <form method="post" enctype="multipart/form-data" id="ticket-form">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -56,4 +57,5 @@
       <button type="submit" id="submit-ticket" {% if not rooms %}disabled{% endif %}>Отправить заявку</button>
       <p class="form-note">После отправки заявка появится в вашем личном кабинете.</p>
     </form>
+    </details>
 {% endblock %}

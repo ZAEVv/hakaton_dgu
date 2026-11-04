@@ -61,6 +61,22 @@ class StaffTests(unittest.TestCase):
         self.assertEqual(self.client.post('/logout', data={'csrf_token': self.csrf()}).status_code, 302)
         self.assertEqual(self.client.get('/admin').status_code, 302)
 
+    def test_accept_in_work_sends_public_message(self):
+        with app.app_context():
+            db().execute("INSERT INTO rooms VALUES (1,'Корпус','101')")
+            db().execute("INSERT INTO tickets (description,category,room_id) VALUES ('Проектор','Оборудование',1)")
+            db().commit()
+        self.login()
+        page = self.client.get('/admin/tickets/1').get_data(as_text=True)
+        self.assertIn('Принять в работу и сообщить заявителю', page)
+        response = self.client.post('/admin/tickets/1', data={'csrf_token': self.csrf(), 'version': '0',
+            'status': 'В работе', 'assignee_id': '', 'comment': 'Заявка принята, приступаем к работе.', 'visibility': 'public'})
+        self.assertEqual(response.status_code, 302)
+        with app.app_context():
+            self.assertEqual(db().execute('SELECT status FROM tickets WHERE id=1').fetchone()[0], 'В работе')
+            history = db().execute('SELECT comment,is_public FROM ticket_history WHERE ticket_id=1').fetchone()
+            self.assertEqual(tuple(history), ('Заявка принята, приступаем к работе.', 1))
+
     def test_staff_ticket_workflow(self):
         with app.app_context():
             db().execute("INSERT INTO rooms VALUES (1,'Корпус','101')")

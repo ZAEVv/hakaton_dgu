@@ -10,10 +10,10 @@
 <dt>Категория</dt><dd>{{ item.category }}</dd>
 <dt>Помещение</dt><dd>{{ item.building }}, {{ item.room }}</dd></dl></section>
 <section aria-label="Фотографии"><h2>Фотографии</h2>{% for a in attachments %}<p><a href="{{ url_for('account_attachment', attachment_id=a.id) }}">Скачать фото {{ a.id }}</a></p>{% else %}<p>Нет фотографий.</p>{% endfor %}</section>
-<section aria-label="История заявки"><h2>История и переписка</h2>
+<section aria-label="История заявки"><h2>Чат по заявке</h2>
 {% if history %}<ol class="account-history">{% for entry in history %}<li><time>{{ entry.date }} (UTC)</time> — {{ entry.change }}{% if entry.comment %}<p class="ticket-text">{{ entry.comment }}</p>{% endif %}</li>{% endfor %}</ol>{% else %}<p>История пока пуста.</p>{% endif %}</section>
 {% if item.status not in ('Решена', 'Отклонена', 'Закрыта') %}
-<section aria-label="Ответ заявителя"><h2>Дополнить заявку</h2>
+<section aria-label="Ответ заявителя"><h2>Написать сотруднику</h2>
 {% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
 <form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 <label for="reply">Ваш ответ</label><textarea id="reply" name="comment" required maxlength="5000" rows="4">{{ request.form.get('comment', '') }}</textarea>

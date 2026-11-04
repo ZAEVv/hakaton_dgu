@@ -1,9 +1,14 @@
 <section class="ai-assistant" aria-labelledby="ai-heading">
-  <h2 id="ai-heading">Помощник</h2>
-  <p>Задайте вопрос или опишите проблему. Не вводите пароли и другую лишнюю личную информацию: сообщение передаётся в DeepSeek.</p>
-  <label for="ai-message">Ваш вопрос или проблема</label>
+  <h2 id="ai-heading">Чат с помощником</h2>
+  <p class="form-note">Опишите проблему. Сообщение будет отправлено в DeepSeek. Не указывайте пароли и лишние личные данные.</p>
+  <div id="chat-messages" class="chat-messages" role="log" aria-live="polite"><p class="chat-bubble assistant-bubble">Здравствуйте! Расскажите, что случилось. Я помогу создать заявку и передать её сотруднику.</p></div>
+  <div id="chat-location" hidden>
+    <label for="chat-room">Где возникла проблема?</label>
+    <select id="chat-room"><option value="">Выберите место</option>{% for room in rooms %}<option value="{{ room.id }}" data-building="{{ room.building }}">{{ room.building }} — {{ room.name }}</option>{% endfor %}</select>
+    <button type="button" id="chat-send-ticket">Отправить заявку в выбранное место</button>
+  </div>
+  <label for="ai-message">Ваше сообщение</label>
   <textarea id="ai-message" maxlength="2000" rows="3" placeholder="Например: в кабинете не работает проектор"></textarea>
-  <button type="button" id="ai-send">Спросить помощника</button>
-  <div id="ai-result" role="status" aria-live="polite" hidden><p id="ai-answer"></p><p id="ai-question"></p><p id="ai-source"></p><button type="button" id="ai-use" hidden>Перенести черновик в заявку</button></div>
-  <p>Помощник может ошибаться. Проверьте информацию перед отправкой заявки.</p>
+  <button type="button" id="ai-send">Отправить сообщение</button>
+  <p class="form-note">После описания неисправности и выбора места заявка отправится сотрудникам автоматически.</p>
 </section>

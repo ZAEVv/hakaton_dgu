@@ -59,3 +59,10 @@ footer { max-width: 720px; margin: 20px auto 32px; padding: 0 28px; }
   .location-fields { grid-template-columns: 1fr; gap: 0; }
   footer { padding: 0 20px; }
 }
+.chat-messages { max-height: 360px; overflow-y: auto; margin: 16px 0; padding: 14px; background: #f3f6fa; border-radius: 10px; }
+.chat-bubble { max-width: 90%; padding: 10px 14px; margin: 8px 0; border-radius: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.assistant-bubble { background: white; border: 1px solid #dce4ee; }
+.user-bubble { margin-left: auto; background: #dceaff; }
+#chat-location { margin: 18px 0; }
+#manual-form { border-top: 1px solid var(--line); margin-top: 24px; padding-top: 16px; }
+#manual-form summary { cursor: pointer; font-weight: 600; }
