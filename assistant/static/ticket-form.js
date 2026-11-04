@@ -37,19 +37,3 @@ if (form) {
   });
   document.getElementById('form-error')?.focus();
 }
-
-const copyButton = document.getElementById('copy-link');
-if (copyButton) {
-  copyButton.addEventListener('click', async () => {
-    const input = document.getElementById('secret-link');
-    const status = document.getElementById('copy-status');
-    try {
-      await navigator.clipboard.writeText(input.value);
-      status.textContent = 'Ссылка скопирована.';
-    } catch {
-      input.focus();
-      input.select();
-      status.textContent = 'Скопируйте выделенную ссылку вручную.';
-    }
-  });
-}

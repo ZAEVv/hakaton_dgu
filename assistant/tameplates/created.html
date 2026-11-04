@@ -1,47 +1,22 @@
-<!doctype html>
-<html lang="ru">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Заявка № {{ number }} создана — Служба колледжа</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='static.css') }}">
-  <script src="{{ url_for('static', filename='ticket-form.js') }}" defer></script>
-</head>
-<body>
-  <header class="site-header"><span class="service-mark" aria-hidden="true">+</span> Служба колледжа</header>
-  <main>
-    <div class="success-icon" aria-hidden="true">✓</div>
-    <h1>Заявка № {{ number }} создана</h1>
-    <p>Заявка сохранена. Повторно отправлять её не нужно.</p>
-    <section class="secret-section" aria-label="Доступ к заявке">
-      <label for="secret-link">Ваша секретная ссылка</label>
-      <p class="form-note">Сохраните ссылку: она нужна для доступа к заявке. Не передавайте её посторонним.</p>
-      <input id="secret-link" value="{{ request.url }}" readonly spellcheck="false">
-      <button id="copy-link" type="button">Скопировать ссылку</button>
-      <p class="copy-status" id="copy-status" role="status"></p>
-      <noscript><p>Выделите и скопируйте ссылку из поля выше.</p></noscript>
-    </section>
-    <section aria-label="Данные заявки">
-      <h2>Данные заявки</h2>
-      <dl>
-        <dt>Дата создания</dt><dd>{{ item.created_at }} (UTC)</dd>
-        <dt>Описание</dt><dd>{{ item.description }}</dd>
-        <dt>Категория</dt><dd>{{ item.category }}</dd>
-        <dt>Помещение</dt><dd>{{ item.building }}, {{ item.room }}</dd>
-        <dt>Текущий статус</dt><dd>{{ 'Решена' if item.status == 'Закрыта' else item.status }}</dd>
-      </dl>
-    </section>
-    <section aria-label="История заявки">
-      <h2>История заявки</h2>
-      {% if history %}
-      <ol>
-        {% for entry in history %}
-        <li><time>{{ entry.date }} (UTC)</time> — {{ entry.change }}{% if entry.comment %}<p>{{ entry.comment }}</p>{% endif %}</li>
-        {% endfor %}
-      </ol>
-      {% else %}<p>История пока пуста.</p>{% endif %}
-    </section>
-    <a href="{{ url_for('index') }}">Подать ещё одну заявку</a>
-  </main>
-</body>
-</html>
+{% extends 'applicant_base.html' %}
+{% block title %}Заявка № {{ number }} — Служба колледжа{% endblock %}
+{% block content %}
+<h1>Заявка № {{ number }}</h1>
+<p>Заявка сохранена в вашем личном кабинете.</p>
+<section aria-label="Данные заявки"><h2>Данные заявки</h2><dl>
+<dt>Текущий статус</dt><dd><strong>{{ 'Решена' if item.status == 'Закрыта' else item.status }}</strong></dd>
+<dt>Дата создания</dt><dd>{{ item.created_at }} (UTC)</dd>
+<dt>Описание</dt><dd class="ticket-text">{{ item.description }}</dd>
+<dt>Категория</dt><dd>{{ item.category }}</dd>
+<dt>Помещение</dt><dd>{{ item.building }}, {{ item.room }}</dd></dl></section>
+<section aria-label="Фотографии"><h2>Фотографии</h2>{% for a in attachments %}<p><a href="{{ url_for('account_attachment', attachment_id=a.id) }}">Скачать фото {{ a.id }}</a></p>{% else %}<p>Нет фотографий.</p>{% endfor %}</section>
+<section aria-label="История заявки"><h2>История и переписка</h2>
+{% if history %}<ol class="account-history">{% for entry in history %}<li><time>{{ entry.date }} (UTC)</time> — {{ entry.change }}{% if entry.comment %}<p class="ticket-text">{{ entry.comment }}</p>{% endif %}</li>{% endfor %}</ol>{% else %}<p>История пока пуста.</p>{% endif %}</section>
+{% if item.status not in ('Решена', 'Отклонена', 'Закрыта') %}
+<section aria-label="Ответ заявителя"><h2>Дополнить заявку</h2>
+{% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+<form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+<label for="reply">Ваш ответ</label><textarea id="reply" name="comment" required maxlength="5000" rows="4">{{ request.form.get('comment', '') }}</textarea>
+<p class="form-note">После ответа на запрос уточнений заявка автоматически вернётся в работу.</p><button>Отправить ответ</button></form></section>
+{% endif %}
+{% endblock %}

@@ -3,6 +3,7 @@ import unittest
 from pathlib import Path
 from werkzeug.security import generate_password_hash
 from main import app, db, init_db
+from test_helpers import register_applicant
 
 
 class StaffTests(unittest.TestCase):
@@ -12,7 +13,7 @@ class StaffTests(unittest.TestCase):
         app.config.update(TESTING=True, SECRET_KEY='test-only-secret', DATABASE=str(Path(self.temp.name) / 'db.sqlite'), UPLOAD_DIR=str(Path(self.temp.name) / 'uploads'))
         init_db()
         with app.app_context():
-            db().execute("INSERT INTO employees (login,password_hash,name) VALUES (?,?,?)", ('staff', generate_password_hash('password'), 'Сотрудник'))
+            db().execute("INSERT INTO employees (login,password_hash,name,role) VALUES (?,?,?,'admin')", ('staff', generate_password_hash('password'), 'Сотрудник'))
             db().commit()
         self.client = app.test_client()
 
@@ -161,6 +162,7 @@ class StaffTests(unittest.TestCase):
             self.assertEqual([row['comment'] for row in db().execute('SELECT comment FROM ticket_history')], ['Первый'])
 
     def test_public_form_rejects_csrf(self):
+        register_applicant(self.client)
         with app.app_context():
             db().execute("INSERT INTO rooms VALUES (1,'Корпус','101')")
             db().commit()
@@ -202,6 +204,7 @@ class StaffTests(unittest.TestCase):
             db().execute("INSERT INTO ticket_history (ticket_id,employee_id,change_description,comment,is_public) VALUES (1,1,'Заметка','очень приватно',0)")
             db().execute('INSERT INTO attachments (ticket_id,file_path) VALUES (1,?)', (str(image),))
             db().commit()
+        self.assertEqual(self.client.get('/ticket/secret-token').status_code, 410)
         self.assertNotIn('очень приватно'.encode(), self.client.get('/ticket/secret-token').data)
         self.assertEqual(self.client.get('/admin/attachments/1').status_code, 302)
         self.login()

@@ -1,0 +1,7 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{% block title %}Панель сотрудника{% endblock %}</title><link rel="stylesheet" href="{{ url_for('static', filename='staff.css') }}"></head>
+<body><header><a href="{{ url_for('admin') }}">Служба колледжа · Заявки</a><nav aria-label="Панель сотрудника">
+{% if current_employee %}<span>{{ current_employee.name }} · {{ 'Администратор' if current_employee.role == 'admin' else 'Исполнитель' }}</span>
+{% if current_employee.role == 'admin' %}<a href="{{ url_for('manage_employees') }}">Сотрудники</a>{% endif %}
+<form method="post" action="{{ url_for('logout') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button>Выйти</button></form>{% endif %}
+</nav></header><main>{% block content %}{% endblock %}</main></body></html>

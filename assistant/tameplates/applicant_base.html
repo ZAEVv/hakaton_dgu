@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="ru">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Личный кабинет — Служба колледжа{% endblock %}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='static.css') }}">
+{% block scripts %}{% endblock %}</head>
+<body>
+<header class="site-header"><span class="service-mark" aria-hidden="true">+</span> Служба колледжа</header>
+<main>
+{% if current_applicant %}
+<nav class="account-nav" aria-label="Личный кабинет"><a href="{{ url_for('account') }}">Мои заявки</a><a href="{{ url_for('index') }}">Подать заявку</a>
+<form method="post" action="{{ url_for('applicant_logout') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button>Выйти</button></form></nav>
+<p class="form-note">{{ current_applicant.last_name }} {{ current_applicant.first_name }} · Зачётная книжка {{ current_applicant.record_book }}</p>
+{% endif %}
+{% block content %}{% endblock %}
+</main><footer>Служба заявок колледжа · <a href="{{ url_for('login') }}">Вход сотрудника</a></footer>
+</body></html>

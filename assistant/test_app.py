@@ -24,6 +24,7 @@ class FormClient(FlaskClient):
 
 from main import app, db, init_db
 from seed import seed_demo
+from test_helpers import register_applicant
 
 
 class HelpdeskTests(unittest.TestCase):
@@ -39,6 +40,7 @@ class HelpdeskTests(unittest.TestCase):
             db().execute("INSERT INTO rooms (building, name) VALUES ('Тестовый', '101')")
             db().commit()
         self.client = app.test_client()
+        register_applicant(self.client)
 
     def tearDown(self):
         app.test_client_class = self.old_client_class
@@ -69,18 +71,21 @@ class HelpdeskTests(unittest.TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertEqual(self.client.get(response.location).status_code, 200)
         confirmation = self.client.get(response.location)
-        self.assertIn('Заявка № 1 создана'.encode(), confirmation.data)
-        self.assertIn(response.location.encode(), confirmation.data)
+        self.assertIn('Заявка № 1'.encode(), confirmation.data)
+        self.assertEqual(response.location, '/account/tickets/1')
+        self.assertNotIn(b'/ticket/', confirmation.data)
         self.assertEqual(confirmation.headers['Cache-Control'], 'no-store')
         self.assertEqual(confirmation.headers['Referrer-Policy'], 'no-referrer')
         self.assertEqual(self.client.post('/', data=data).location, response.location)
-        self.assertEqual(self.client.get('/ticket/unknown').status_code, 404)
+        self.assertEqual(self.client.get('/ticket/unknown').status_code, 410)
         with app.app_context():
             self.assertEqual(db().execute('SELECT count(*) FROM tickets').fetchone()[0], 1)
             history = db().execute('SELECT * FROM ticket_history').fetchall()
             self.assertEqual(len(history), 1)
             self.assertEqual(history[0]['is_public'], 1)
-            self.assertIsNone(history[0]['employee_id'])  # Anonymous applicant.
+            self.assertIsNone(history[0]['employee_id'])
+            self.assertEqual(history[0]['applicant_id'], 1)
+            self.assertEqual(db().execute('SELECT applicant_id FROM tickets').fetchone()[0], 1)
             attachment = db().execute('SELECT file_path FROM attachments').fetchone()
             self.assertTrue(Path(attachment['file_path']).is_file())
 
@@ -152,9 +157,11 @@ class HelpdeskTests(unittest.TestCase):
 
     def test_concurrent_duplicate(self):
         data = self.form_data()
+        cookie = self.client.get_cookie('session').value
 
         def submit(_):
             with app.test_client() as client:
+                client.set_cookie('session', cookie)
                 response = client.post('/', data=data)
                 return response.status_code, response.location
 

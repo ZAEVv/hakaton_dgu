@@ -44,9 +44,14 @@ button:disabled, select:disabled { opacity: .6; cursor: default; }
 .error p { margin: 6px 0 0; }
 a { color: var(--blue); text-underline-offset: 3px; }
 .success-icon { display: grid; place-items: center; width: 48px; height: 48px; margin-bottom: 20px; border-radius: 50%; background: #e1f3ec; color: #216548; font-size: 26px; }
-.secret-section { padding-top: 24px; margin: 24px 0; border-top: 1px solid var(--line); }
-.secret-section input { margin-bottom: 10px; }
-.copy-status { min-height: 24px; color: var(--muted); font-size: .9rem; }
+.account-nav { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; border-bottom: 1px solid var(--line); padding-bottom: 14px; margin-bottom: 16px; }
+.account-nav form { margin-left: auto; }
+.account-nav button { width: auto; min-height: 40px; padding: 6px 14px; margin: 0; }
+.account-ticket { padding: 18px 0 8px; border-top: 1px solid var(--line); }
+.account-ticket h2 { margin-top: 0; font-size: 1.2rem; }
+.ticket-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.account-history li { padding: 10px 0; border-bottom: 1px solid var(--line); }
+dd { margin: 0 0 14px; } dt { font-weight: 600; }
 footer { max-width: 720px; margin: 20px auto 32px; padding: 0 28px; }
 @media (max-width: 540px) {
   .site-header { margin: 18px 0; padding: 0 20px; }

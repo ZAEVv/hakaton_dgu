@@ -1,0 +1,11 @@
+{% extends 'applicant_base.html' %}
+{% block content %}
+<h1>Мои заявки</h1>
+<p class="intro">Здесь сохраняются ваши обращения, их статусы и ответы сотрудников.</p>
+{% for item in items %}
+<article class="account-ticket"><h2><a href="{{ url_for('account_ticket', ticket_id=item.id) }}">Заявка № {{ item.id }}</a></h2>
+<p><strong>{{ 'Решена' if item.status == 'Закрыта' else item.status }}</strong></p>
+<p class="ticket-text">{{ item.description|truncate(180) }}</p>
+<p class="form-note">{{ item.created_at }} UTC · {{ item.building }}, {{ item.room }} · {{ item.category }}</p></article>
+{% else %}<p>Вы ещё не отправляли заявок. <a href="{{ url_for('index') }}">Сообщить о проблеме</a>.</p>{% endfor %}
+{% endblock %}

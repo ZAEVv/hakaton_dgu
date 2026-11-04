@@ -23,7 +23,7 @@ def seed_demo():
             if employee is None:
                 password = os.environ.get('DEMO_PASSWORD') or secrets.token_urlsafe(18)
                 employee_id = connection.execute(
-                    'INSERT INTO employees (login, password_hash, name) VALUES (?, ?, ?)',
+                    "INSERT INTO employees (login, password_hash, name, role) VALUES (?, ?, ?, 'admin')",
                     ('demo', generate_password_hash(password), 'Демонстрационный сотрудник'),
                 ).lastrowid
             else:
