@@ -45,4 +45,33 @@ body.auth-page { --auth-canvas:#e2e8f0; --auth-card:#fff; --auth-ink:#172446; --
 .auth-page .auth-form a { color:var(--auth-accent); }
 @media(max-width:800px) { .auth-page .auth-layout { grid-template-columns:1fr; } .auth-page .campus-panel { min-height:0; padding:32px; } .auth-page .campus-panel .campus-title { max-width:18ch; margin:14px 0; font-size:clamp(2rem,8vw,3rem); } .auth-page .campus-caption { margin-top:20px; } }
 @media(max-width:600px) { .site-header, .auth-page .site-header { padding:16px; } .auth-page main, .staff-site.auth-page main { width:calc(100% - 32px); margin:24px auto 32px; } .auth-page .auth-form { padding:28px 22px; } .page-heading, .staff-heading { border-radius:18px; padding:28px 24px; } }
+
+/* Keep the primary conversation visible without hiding the manual fallback. */
+.request-page .site-header { padding-top: 8px; padding-bottom: 8px; }
+.request-page .account-nav { padding-top: 4px; padding-bottom: 4px; margin-bottom: 0; }
+.request-page main { padding-top: 8px !important; }
+.request-page .page-heading { background: transparent; color: var(--ink); padding: 0; margin: 0 0 6px; }
+.request-page .page-heading h1 { color: var(--ink); font-size: 1.35rem; margin: 0; }
+.request-page .page-heading .eyebrow, .request-page .page-heading .intro { display: none; }
+.request-page .safety-note { padding: 6px 10px; margin: 0 0 8px; line-height: 1.35; }
+.request-page .request-workspace { grid-template-columns: minmax(0, 1.35fr) minmax(260px, .8fr); }
+.request-page .request-assistance .ai-assistant { position: static; padding: 14px 18px; }
+.request-page .assistant-heading { margin-bottom: 4px; }
+.request-page .assistant-heading p { margin: 0; }
+.request-page .ai-assistant > .form-note { margin-bottom: 5px; line-height: 1.3; }
+.request-page .chat-messages { min-height: 0; max-height: 240px; padding: 5px; margin: 5px 0; }
+.request-page .chat-bubble { padding: 6px 10px; margin: 2px 0; }
+.request-page #ai-message { min-height: 48px; height: 56px; }
+@media(max-width:800px) { .request-page .request-workspace { grid-template-columns: 1fr; } }
+@media(max-height:500px) {
+  .request-page .site-header { padding-top: 0; padding-bottom: 0; }
+  .request-page .ai-assistant > .form-note { font-size: .8rem; }
+  .request-page main { margin-top: 0; }
+  .request-page .page-heading { display: none; }
+  .request-page .request-assistance .ai-assistant { padding: 6px 12px; }
+  .request-page .assistant-heading p { display: none; }
+  .request-page .chat-messages { max-height: 30px; }
+  .request-page .chat-messages:has(.user-bubble) { max-height: 240px; }
+}
+
 @media(prefers-reduced-motion:reduce) { *, *::before, *::after { scroll-behavior:auto !important; transition:none !important; animation:none !important; } }
