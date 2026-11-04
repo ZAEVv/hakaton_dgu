@@ -569,8 +569,14 @@ def admin():
     statistics = db().execute('''SELECT COUNT(*) AS total,
           COALESCE(SUM(CASE WHEN status NOT IN ('Решена', 'Отклонена', 'Закрыта') THEN 1 ELSE 0 END), 0) AS open,
           COALESCE(SUM(CASE WHEN status IN ('Решена', 'Закрыта') THEN 1 ELSE 0 END), 0) AS resolved FROM tickets''').fetchone()
+    category_statistics = db().execute('''SELECT category, COUNT(*) AS count FROM tickets
+                                            GROUP BY category ORDER BY count DESC, category''').fetchall()
+    room_statistics = db().execute('''SELECT r.building, r.name AS room, COUNT(*) AS count
+                                        FROM tickets t JOIN rooms r ON r.id=t.room_id
+                                        GROUP BY r.id ORDER BY count DESC, r.building, r.name, r.id''').fetchall()
     return render_template('admin.html', items=items, employees=employees, buildings=buildings, rooms=rooms,
-                           statuses=STATUSES, categories=filter_categories(), statistics=statistics, csrf_token=csrf_token())
+                           statuses=STATUSES, categories=filter_categories(), statistics=statistics,
+                           category_statistics=category_statistics, room_statistics=room_statistics, csrf_token=csrf_token())
 
 
 

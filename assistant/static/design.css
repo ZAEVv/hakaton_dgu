@@ -135,6 +135,10 @@ section { border-color: var(--line); }
 .statistics-values { display: flex; gap: 40px; margin: 0 0 12px; padding: 18px 0; border-block: 1px solid var(--line); }
 .statistics-values > span { min-width: 110px; }
 .statistics-values strong { display: block; color: var(--blue); font: 32px Georgia, serif; margin: 5px 0 0; }
+.statistics-distributions { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 1rem 2rem; }
+.statistics-distributions > div { min-width: 0; }
+.statistics-distributions h3 { font-size: 1rem; }
+.statistics-distributions ul { padding-left: 1.4rem; overflow-wrap: anywhere; }
 .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; }
 table { width: 100%; border-collapse: collapse; text-align: left; font-size: .87rem; }
 th { background: var(--surface); color: var(--muted); font-size: .8rem; font-weight: 700; }

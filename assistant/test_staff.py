@@ -43,6 +43,54 @@ class StaffTests(unittest.TestCase):
         self.assertIn('Открыто: <strong>1</strong>', page)
         self.assertIn('Решено: <strong>1</strong>', page)
 
+    def test_empty_statistics_show_empty_distributions(self):
+        self.login()
+        page = self.client.get('/admin').get_data(as_text=True)
+        self.assertIn('По категориям', page)
+        self.assertIn('По помещениям', page)
+        self.assertEqual(page.count('Пока нет заявок.'), 2)
+        self.assertIn('Всего: <strong>0</strong>', page)
+
+    def test_distributions_count_all_categories_and_distinct_rooms_despite_filters(self):
+        with app.app_context():
+            db().executemany('INSERT INTO rooms VALUES (?,?,?)', [(1, 'Корпус А', '101'), (2, 'Корпус Б', '101')])
+            db().executemany('INSERT INTO tickets (description,category,room_id,status) VALUES (?,?,?,?)', [
+                ('Первая', 'Электрика', 1, 'Новая'), ('Вторая', 'Электрика', 2, 'Решена'),
+                ('Третья', 'Старая категория', 2, 'Отклонена')])
+            db().commit()
+        self.login()
+        for query in ({}, {'status': 'Новая', 'room_id': '1', 'date_from': '2099-01-01'}):
+            page = self.client.get('/admin', query_string=query).get_data(as_text=True)
+            statistics = page.split('<section class="statistics"', 1)[1].split('</section>', 1)[0]
+            for expected in ('Всего: <strong>3</strong>', 'Электрика: <strong>2</strong>',
+                             'Старая категория: <strong>1</strong>', 'Корпус А, 101: <strong>1</strong>',
+                             'Корпус Б, 101: <strong>2</strong>', 'независимо от фильтров'):
+                self.assertIn(expected, statistics)
+            self.assertNotIn('Пока нет заявок.', statistics)
+
+    def test_distributions_only_available_to_active_staff(self):
+        with app.app_context():
+            db().execute("INSERT INTO rooms VALUES (1,'Секретный корпус','999')")
+            db().execute("INSERT INTO tickets (description,category,room_id) VALUES ('Личная заявка','Особая категория',1)")
+            db().execute("INSERT INTO employees (login,password_hash,name,role) VALUES (?,?,?,'employee')", ('worker', generate_password_hash('password'), 'Исполнитель'))
+            db().commit()
+        for client in (self.client, app.test_client()):
+            if client is not self.client:
+                register_applicant(client)
+            response = client.get('/admin', follow_redirects=True)
+            self.assertNotIn('Особая категория', response.get_data(as_text=True))
+            self.assertNotIn('Секретный корпус', response.get_data(as_text=True))
+        worker = app.test_client()
+        worker.get('/login')
+        with worker.session_transaction() as session:
+            token = session['csrf_token']
+        worker.post('/login', data={'login': 'worker', 'password': 'password', 'csrf_token': token})
+        self.assertIn('Особая категория: <strong>1</strong>', worker.get('/admin').get_data(as_text=True))
+        with app.app_context():
+            db().execute("UPDATE employees SET is_active=0 WHERE login='worker'")
+            db().commit()
+        self.assertEqual(worker.get('/admin').status_code, 302)
+
     def test_excess_login_attempts_are_limited(self):
         self.client.get('/login')
         for _ in range(15):
