@@ -5,6 +5,8 @@
   const locationBox = document.getElementById('chat-location');
   const location = document.getElementById('chat-room');
   const submit = document.getElementById('chat-send-ticket');
+  const description = document.getElementById('chat-description');
+  const category = document.getElementById('chat-category');
   const form = document.getElementById('ticket-form');
   if (!input || !send || !log || !form) return;
   const csrf = form.elements.csrf_token.value;
@@ -24,27 +26,31 @@
     save();
     p.scrollIntoView({block: 'nearest'});
   }
+  function showDraft() {
+    description.value = draft.draft || '';
+    category.value = draft.category || 'Другое';
+    locationBox.hidden = false;
+  }
+  function updateDraft() {
+    if (!draft) return;
+    draft.draft = description.value;
+    draft.category = category.value;
+    save();
+  }
   async function createTicket() {
     if (!draft || busy || pending) return;
+    if (draft.overflow) { say('Не всё сообщение поместилось в описание. Отредактируйте описание, добавьте важные сведения и проверьте его перед отправкой.'); return; }
     if (!location.value) { say('Выберите место из списка, чтобы я смог отправить заявку.'); return; }
+    if (!description.value.trim() || !category.value) { say('Укажите описание и категорию заявки.'); return; }
+    updateDraft();
     busy = true; pending = true; send.disabled = submit.disabled = true;
-    if (draft.type === 'danger' && !draft.summarized) {
-      try {
-        const response = await fetch('/api/assistant', {method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/json','X-CSRF-Token':csrf}, body:JSON.stringify({message:draft.draft,summarize_danger:true})});
-        if (response.ok) {
-          const result = await response.json();
-          if (typeof result.draft === 'string' && result.draft.trim()) draft.draft = result.draft;
-        }
-      } catch (_) { /* Retain the user's problem if summarization is unavailable. */ }
-      draft.summarized = true; save();
-    }
     const selected = location.selectedOptions[0];
-    form.elements.building.value = selected.dataset.building;
-    form.elements.building.dispatchEvent(new Event('change'));
-    form.elements.room_id.value = location.value;
-    form.elements.category.value = draft.category || 'Другое';
-    form.elements.description.value = draft.draft;
     const body = new FormData(form);
+    body.set('building', selected.dataset.building);
+    body.set('room_id', location.value);
+    body.set('category', category.value);
+    body.set('description', description.value);
+    body.delete('photo');
     say('Отправляю заявку сотрудникам…');
     try {
       const response = await fetch(form.action || '/', {method:'POST', body, credentials:'same-origin'});
@@ -74,23 +80,48 @@
     const notifyIntent = /(?:сообщ|отправ|переда|администратор|сотрудник)/i.test(text);
     if (!draft && notifyIntent) {
       const previous = [...transcript].reverse().find(entry => entry.who === 'user' && /искр|дым|гар[ьи]|горит|пожар|провод|удар.*ток/i.test(entry.text));
-      if (previous) draft = {type:'danger', category:'Другое', draft:previous.text};
+      if (previous) { draft = {type:'danger', category:'Другое', draft:previous.text}; showDraft(); }
     }
-    if (draft && !locationBox.hidden) {
-      say(text, 'user'); input.value = '';
-      const cleaned = text.trim().toLocaleLowerCase('ru-RU');
-      const matches = Array.from(location.options).filter(option => option.value && (option.text.toLocaleLowerCase('ru-RU') === cleaned || option.text.toLocaleLowerCase('ru-RU').includes(cleaned)));
-      if (matches.length === 1) {
-        location.value = matches[0].value; save();
-        await createTicket();
-      } else {
-        say('Укажите место, выбрав его из списка. Затем нажмите «Отправить обращение администратору».');
+    if (draft) {
+      // Every new message must be assessed before interpreting it as a room.
+      // Keep the existing editable draft and selected room independent of the reply.
+      updateDraft();
+      const cleaned = text.toLocaleLowerCase('ru-RU');
+      const matches = Array.from(location.options).filter(option => option.value && option.text.toLocaleLowerCase('ru-RU') === cleaned);
+      const notifyOnly = /^(?:пожалуйста[,\s]+)?(?:сообщите|сообщи|передайте|передай|отправьте|отправь)\s+(?:(?:об этом|это)\s+)?(?:администратору|сотрудникам|сотруднику)[.!\s]*$/i.test(text);
+      if (!matches.length && !notifyOnly && !description.value.split('\n').includes(text)) {
+        const combined = description.value ? `${description.value}\n${text}` : text;
+        const limit = description.maxLength > 0 ? description.maxLength : 5000;
+        if (combined.length <= limit) {
+          description.value = combined; updateDraft();
+        } else {
+          draft.overflow = true; save();
+          say('Дополнение не поместилось в описание и осталось в переписке. Сократите описание и вручную добавьте важные сведения; затем проверьте его перед отправкой.');
+        }
       }
-      return;
-    }
-    if (draft && notifyIntent) {
-      say(text, 'user'); input.value = ''; locationBox.hidden = false; save();
-      say('Конечно, передам обращение администратору. Сначала выберите место из списка.');
+      say(text, 'user'); input.value = '';
+      busy = true; send.disabled = submit.disabled = true;
+      try {
+        const response = await fetch('/api/assistant', {method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/json','X-CSRF-Token':csrf}, body:JSON.stringify({message:text})});
+        const data = await response.json();
+        if (!response.ok || !data || !['danger', 'fault', 'question', 'unclear'].includes(data.type)) throw new Error('Помощник недоступен');
+        if (data.answer) say(data.answer);
+        if (data.question) say(data.question);
+        if (data.source) say(`Источник: ${data.source}`);
+        if (data.type === 'danger') {
+          if (!data.answer) say('При непосредственной опасности отойдите в безопасное место и звоните 112.');
+          say('Проверьте описание и подтвердите отправку кнопкой.');
+        } else {
+          if (matches.length === 1) {
+            location.value = matches[0].value; save();
+            say('Место выбрано. Проверьте черновик и подтвердите отправку кнопкой.');
+          } else {
+            say('Проверьте описание и выберите место из списка. Отправка — только по кнопке.');
+          }
+        }
+      } catch (_) {
+        say('Не удалось проверить новое сообщение. Если есть непосредственная опасность, отойдите в безопасное место и звоните 112. Черновик сохранён; проверьте его перед отправкой.');
+      } finally { busy = false; send.disabled = submit.disabled = false; save(); }
       return;
     }
     draft = null; locationBox.hidden = true;
@@ -100,7 +131,7 @@
     try {
       const response = await fetch('/api/assistant', {method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/json','X-CSRF-Token':csrf}, body:JSON.stringify({message:combined})});
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Помощник временно недоступен.');
+      if (!response.ok || !data || !['danger', 'fault', 'question', 'unclear'].includes(data.type)) throw new Error('Помощник временно недоступен.');
       if (data.answer) say(data.answer);
       if (data.question) say(data.question);
       if (data.source) say(`Источник: ${data.source}`);
@@ -108,7 +139,7 @@
         draft = {type:'danger', category:'Другое', draft:combined};
         const qrRoom = form.elements.room_id.value;
         if (qrRoom && Array.from(location.options).some(o => o.value === qrRoom)) location.value = qrRoom;
-        locationBox.hidden = false;
+        showDraft();
         if (!location.value) say('Чтобы я направил обращение администратору, выберите место из списка. Пока не подходите к оборудованию.');
         save();
       }
@@ -117,13 +148,12 @@
         draft = data;
         const qrRoom = form.elements.room_id.value;
         if (qrRoom && Array.from(location.options).some(o => o.value === qrRoom)) location.value = qrRoom;
-        locationBox.hidden = false;
+        showDraft();
         save();
         if (!location.value) say('Где возникла проблема? Выберите корпус и помещение из списка.');
       }
-    } catch (error) { say(error.message || 'Помощник недоступен. Можно заполнить заявку вручную ниже.'); }
+    } catch (_) { say('Не удалось проверить сообщение. Если есть непосредственная опасность, отойдите в безопасное место и звоните 112. Можно заполнить заявку вручную ниже.'); }
     finally { busy = false; send.disabled = false; save(); }
-    if (draft && location.value) await createTicket();
   });
   input.addEventListener('keydown', event => {
     if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
@@ -131,6 +161,8 @@
     }
   });
   location.addEventListener('change', save);
+  description.addEventListener('input', () => { if (draft) draft.overflow = false; updateDraft(); });
+  category.addEventListener('change', updateDraft);
   submit.addEventListener('click', createTicket);
   reset.addEventListener('click', () => { sessionStorage.removeItem(storageKey); window.location.href = '/'; });
   try {
@@ -149,7 +181,7 @@
           const link = document.createElement('a'); link.href = url.href; link.className = 'chat-link'; link.textContent = 'Открыть заявку и переписку'; log.appendChild(link);
           input.disabled = send.disabled = true; reset.hidden = false;
         }
-      } else if (draft) locationBox.hidden = false;
+      } else if (draft) showDraft();
       save();
     }
   } catch (_) { /* Ignore unavailable or corrupt browser storage. */ }

@@ -39,6 +39,8 @@ app.config.update(
 )
 CATEGORIES = ('Электрика', 'Сантехника', 'Мебель', 'Оборудование', 'Другое')
 STATUSES = ('Новая', 'На рассмотрении', 'Назначен исполнитель', 'В работе', 'Нужны уточнения', 'Решена', 'Отклонена')
+# Match the default password hashing work for nonexistent or inactive accounts.
+DUMMY_PASSWORD_HASH = generate_password_hash(secrets.token_urlsafe(32))
 
 
 def db():
@@ -109,6 +111,8 @@ def applicant_required(view):
         if not app.secret_key:
             abort(503, 'SECRET_KEY не настроен')
         if request.method == 'POST':
+            # Read bounded client input before locking; authorize under the lock.
+            request.get_data(cache=True)
             db().execute('BEGIN IMMEDIATE')
         auth_token = session.get('applicant_auth_token', '')
         token_hash = hashlib.sha256(auth_token.encode()).hexdigest()
@@ -418,7 +422,8 @@ def applicant_login():
         applicant = db().execute('SELECT * FROM applicants WHERE record_book=?',
                                  (record_book_number(request.form.get('record_book', '')),)).fetchone()
         password = request.form.get('password', '')
-        if applicant and len(password) <= 256 and check_password_hash(applicant['password_hash'], password):
+        password_ok = check_password_hash(applicant['password_hash'] if applicant else DUMMY_PASSWORD_HASH, password[:256])
+        if applicant and len(password) <= 256 and password_ok:
             start_applicant_session(applicant['id'])
             return redirect(url_for('index' if 'pending_qr_room' in session else 'account'))
         error = 'Неверный логин или пароль.'
@@ -468,6 +473,8 @@ def staff_required(view):
         if not app.secret_key:
             abort(503, 'SECRET_KEY не настроен')
         if request.method == 'POST':
+            # Read bounded client input before locking; authorize under the lock.
+            request.get_data(cache=True)
             db().execute('BEGIN IMMEDIATE')
         employee_id = session.get('employee_id')
         auth_token = session.get('auth_token', '')
@@ -767,7 +774,9 @@ def login():
         if not login_attempt_allowed('staff'):
             return render_template('login.html', csrf_token=token, error='Слишком много попыток входа. Попробуйте через 10 минут.'), 429
         employee = db().execute('SELECT * FROM employees WHERE login = ?', (request.form.get('login', ''),)).fetchone()
-        if employee and employee['is_active'] and check_password_hash(employee['password_hash'], request.form.get('password', '')):
+        password = request.form.get('password', '')
+        password_ok = check_password_hash(employee['password_hash'] if employee and employee['is_active'] else DUMMY_PASSWORD_HASH, password)
+        if employee and employee['is_active'] and password_ok:
             db().execute('BEGIN IMMEDIATE')
             current = db().execute('SELECT password_hash, is_active FROM employees WHERE id=?', (employee['id'],)).fetchone()
             if not current or not current['is_active'] or current['password_hash'] != employee['password_hash']:
