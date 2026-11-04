@@ -3,64 +3,34 @@
 {% block scripts %}<script src="{{ url_for('static', filename='ticket-form.js') }}" defer></script><script src="{{ url_for('static', filename='ai-assistant.js') }}" defer></script>{% endblock %}
 {% block content %}
 <div class="layout-index">
-    <div class="page-heading"><p class="eyebrow">Сервис обращений / Новая заявка</p><h1>Что нужно исправить?</h1>
-    <p class="intro">Сообщите о проблеме в колледже. Укажите место и опишите, что случилось.</p>
-    </div>
-    <p class="safety-note" role="note"><strong>Опасная ситуация?</strong> При дыме, искрах или запахе гари отойдите, не трогайте оборудование и немедленно сообщите ответственному сотруднику или обратитесь в экстренную службу по ситуации.</p>
-    {% if error %}<div class="error" role="alert" tabindex="-1" id="form-error"><strong>Заявка не отправлена</strong><p>{{ error }}</p><p>Поля сохранены. Если прикладывали фото, выберите его заново.</p></div>{% endif %}
-    {% if qr_notice %}<p class="form-note" role="status">{{ qr_notice }}</p>{% endif %}
-    {% if not rooms %}<p class="error" role="alert">Нет доступных помещений. Обратитесь к сотруднику колледжа.</p>{% endif %}
-    <div class="request-workspace">
-    <details id="manual-form"{% if error %} open{% endif %}><summary>Заполнить заявку вручную или прикрепить фото</summary>
-    <p class="form-note">Все поля обязательны, кроме фотографии.</p>
-    <form method="post" enctype="multipart/form-data" id="ticket-form">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <input type="hidden" name="request_key" value="{{ request_key }}">
-      <fieldset>
-        <legend>Где возникла проблема</legend>
-        <div class="location-fields">
-          <div class="field">
-            <label for="building">Корпус</label>
-            <select id="building" name="building" required>
-              <option value="">Выберите корпус</option>
-              {% for building in buildings %}<option value="{{ building }}" {% if values.get('building') == building %}selected{% endif %}>{{ building }}</option>{% endfor %}
-            </select>
+  <header class="page-heading"><h1>Что нужно исправить?</h1><p>Сообщите о проблеме в колледже. Укажите место и опишите, что случилось.</p></header>
+  <p class="safety-note" role="note"><strong>Опасная ситуация?</strong> При дыме, искрах или запахе гари отойдите, не трогайте оборудование и немедленно сообщите ответственному сотруднику или обратитесь в экстренную службу по ситуации.</p>
+  {% if error %}<div class="error" role="alert" tabindex="-1" id="form-error"><strong>Заявка не отправлена</strong><p>{{ error }}</p><p>Поля сохранены. Если прикладывали фото, выберите его заново.</p></div>{% endif %}
+  {% if qr_notice %}<p class="status" role="status">{{ qr_notice }}</p>{% endif %}
+  {% if not rooms %}<p class="error" role="alert">Нет доступных помещений. Обратитесь к сотруднику колледжа.</p>{% endif %}
+  <div class="request-workspace">
+    <details id="manual-form" open>
+      <summary>Заполнить заявку вручную или прикрепить фото</summary>
+      <p>Все поля обязательны, кроме фотографии.</p>
+      <form method="post" enctype="multipart/form-data" id="ticket-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="hidden" name="request_key" value="{{ request_key }}">
+        <fieldset><legend>Где возникла проблема</legend>
+          <div class="layout-grid">
+            <div class="field"><label for="building">Корпус</label><select id="building" name="building" required><option value="">Выберите корпус</option>{% for building in buildings %}<option value="{{ building }}" {% if values.get('building') == building %}selected{% endif %}>{{ building }}</option>{% endfor %}</select></div>
+            <div class="field"><label for="room">Помещение</label><select id="room" name="room_id" required aria-describedby="room-help"><option value="">Выберите помещение</option>{% for room in rooms %}<option value="{{ room.id }}" data-building="{{ room.building }}" {% if values.get('room_id') == room.id|string %}selected{% endif %}>{{ room.name }} ({{ room.building }})</option>{% endfor %}</select><small id="room-help">Помещение должно относиться к выбранному корпусу.</small></div>
           </div>
-          <div class="field">
-            <label for="room">Помещение</label>
-            <select id="room" name="room_id" required aria-describedby="room-help">
-              <option value="">Выберите помещение</option>
-              {% for room in rooms %}<option value="{{ room.id }}" data-building="{{ room.building }}" {% if values.get('room_id') == room.id|string %}selected{% endif %}>{{ room.name }} ({{ room.building }})</option>{% endfor %}
-            </select>
-            <small id="room-help">Помещение должно относиться к выбранному корпусу.</small>
-          </div>
-        </div>
-      </fieldset>
-      <fieldset>
-        <legend>Что случилось</legend>
-        <div class="field">
-          <label for="category">Категория</label>
-          <select id="category" name="category" required>
-            <option value="">Выберите категорию</option>
-            {% for category in categories %}<option value="{{ category }}" {% if values.get('category') == category %}selected{% endif %}>{{ category }}</option>{% endfor %}
-          </select>
-        </div>
-        <div class="field">
-          <label for="description">Описание проблемы</label>
-          <textarea id="description" name="description" maxlength="5000" rows="5" required placeholder="Например: в кабинете не горят две лампы над доской" aria-describedby="description-help">{{ values.get('description', '') }}</textarea>
-          <small id="description-help">Расскажите, что не работает и где именно. До 5000 символов.</small>
-        </div>
-      </fieldset>
-      <div class="field photo-field">
-        <label for="photo">Фотография <span class="optional">необязательно</span></label>
-        <input id="photo" type="file" name="photo" accept="image/jpeg,image/png,image/webp" aria-describedby="photo-help">
-        <small id="photo-help">JPEG, PNG или WebP до 4 МБ, не более 20 мегапикселей.</small>
-      </div>
-      <button type="submit" id="submit-ticket" {% if not rooms %}disabled{% endif %}>Отправить заявку</button>
-      <p class="form-note">После отправки заявка появится в вашем личном кабинете.</p>
-    </form>
+        </fieldset>
+        <fieldset><legend>Что случилось</legend>
+          <div class="field"><label for="category">Категория</label><select id="category" name="category" required><option value="">Выберите категорию</option>{% for category in categories %}<option value="{{ category }}" {% if values.get('category') == category %}selected{% endif %}>{{ category }}</option>{% endfor %}</select></div>
+          <div class="field"><label for="description">Описание проблемы</label><textarea id="description" name="description" maxlength="5000" rows="5" required placeholder="Например: в кабинете не горят две лампы над доской" aria-describedby="description-help">{{ values.get('description', '') }}</textarea><small id="description-help">Расскажите, что не работает и где именно. До 5000 символов.</small></div>
+        </fieldset>
+        <div class="field"><label for="photo">Фотография <span>необязательно</span></label><input id="photo" type="file" name="photo" accept="image/jpeg,image/png,image/webp" aria-describedby="photo-help"><small id="photo-help">JPEG, PNG или WebP до 4 МБ, не более 20 мегапикселей.</small></div>
+        <button type="submit" id="submit-ticket" {% if not rooms %}disabled{% endif %}>Отправить заявку</button>
+        <p>После отправки заявка появится в вашем личном кабинете.</p>
+      </form>
     </details>
     <aside class="request-assistance" aria-label="Помощь с заявкой">{% include 'ai_assistant.html' %}</aside>
-    </div>
+  </div>
 </div>
 {% endblock %}

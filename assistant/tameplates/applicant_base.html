@@ -1,20 +1,25 @@
 <!doctype html>
 <html lang="ru">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{% block title %}Личный кабинет — Служба колледжа{% endblock %}</title>
-<link rel="stylesheet" href="{{ url_for('static', filename='static.css') }}">
-{% include 'theme_head.html' %}
-{% block scripts %}{% endblock %}</head>
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Личный кабинет — Служба колледжа{% endblock %}</title>
+  {% include 'theme_head.html' %}{% block scripts %}{% endblock %}
+</head>
 <body class="applicant-site {% block body_class %}{% endblock %}">
-<a class="skip-link" href="#main-content">Перейти к содержимому</a>
-<header class="site-header"><a class="brand" href="{{ url_for('index') }}"><span class="service-mark" aria-hidden="true">СК</span><span>Служба колледжа<small>Заявки и помощь</small></span></a>{% include 'theme_switch.html' %}</header>
-{% if current_applicant %}
-<div class="account-bar"><nav class="account-nav" aria-label="Личный кабинет"><a href="{{ url_for('index') }}" {% if request.endpoint == 'index' %}aria-current="page"{% endif %}>Подать заявку</a><a href="{{ url_for('account') }}" {% if request.endpoint in ('account', 'account_ticket') %}aria-current="page"{% endif %}>Мои заявки</a>
-<span class="account-person">{{ current_applicant.last_name }} {{ current_applicant.first_name }}</span>
-<form method="post" action="{{ url_for('applicant_logout') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button>Выйти</button></form></nav>
-</div>
-{% endif %}
-<main id="main-content" tabindex="-1">
-<div class="site-content">{% block content %}{% endblock %}</div>
-</main><footer><span>Служба заявок колледжа</span><a href="{{ url_for('login') }}">Вход сотрудника</a></footer>
-</body></html>
+  <a class="skip-link" href="#main-content">Перейти к содержимому</a>
+  <header class="site-header">
+    <a class="brand" href="{{ url_for('index') }}"><span class="service-mark" aria-hidden="true">СК</span><span>Служба колледжа<small>Заявки и помощь</small></span></a>
+    {% include 'theme_switch.html' %}
+  </header>
+  {% if current_applicant %}
+  <nav class="account-nav" aria-label="Личный кабинет">
+    <a href="{{ url_for('index') }}" {% if request.endpoint == 'index' %}aria-current="page"{% endif %}>Подать заявку</a>
+    <a href="{{ url_for('account') }}" {% if request.endpoint in ('account', 'account_ticket') %}aria-current="page"{% endif %}>Мои заявки</a>
+    <span class="account-person">{{ current_applicant.last_name }} {{ current_applicant.first_name }}</span>
+    <form method="post" action="{{ url_for('applicant_logout') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button type="submit">Выйти</button></form>
+  </nav>
+  {% endif %}
+  <main id="main-content" tabindex="-1"><div class="site-content">{% block content %}{% endblock %}</div></main>
+  <footer class="site-footer"><span>Служба заявок колледжа</span><a href="{{ url_for('login') }}">Вход сотрудника</a></footer>
+</body>
+</html>

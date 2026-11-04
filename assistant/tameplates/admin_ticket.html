@@ -2,42 +2,35 @@
 {% block title %}Заявка № {{ item.id }}{% endblock %}
 {% block content %}
 <div class="layout-admin-ticket">
-<div class="ticket-overview">
-<h1>Заявка № {{ item.id }}</h1>
-<p><strong>Заявитель:</strong> {% if item.applicant_id %}<a href="{{ url_for('admin_applicant', applicant_id=item.applicant_id) }}">{{ item.last_name }} {{ item.first_name }}</a> · Логин {{ item.record_book }}{% else %}Старая заявка без аккаунта{% endif %}</p>
-<p>{{ item.created_at }} UTC · {{ item.building }}, {{ item.room }} · {{ item.category }}</p>
-<p class="ticket-description">{{ item.description }}</p>
-<p><strong>Статус:</strong> {{ 'Решена' if item.status == 'Закрыта' else item.status }}</p>
-<p><strong>Исполнитель:</strong> {% for e in employees if e.id == item.assignee_id %}{{ e.name }}{% else %}Не назначен{% endfor %}</p>
+<header class="page-heading"><p><a href="{{ url_for('admin') }}">Все заявки</a></p><h1>Заявка № {{ item.id }}</h1><p>{{ item.created_at }} UTC · {{ item.building }}, {{ item.room }} · {{ item.category }}</p></header>
+<div class="layout-grid">
+  <div>
+    <section class="surface" aria-labelledby="ticket-description"><h2 id="ticket-description">Обращение</h2>
+      <p class="ticket-description">{{ item.description }}</p>
+      <p><strong>Заявитель:</strong> {% if item.applicant_id %}<a href="{{ url_for('admin_applicant', applicant_id=item.applicant_id) }}">{{ item.last_name }} {{ item.first_name }}</a> · Логин {{ item.record_book }}{% else %}Старая заявка без аккаунта{% endif %}</p>
+      <p><strong>Статус:</strong> <span class="status">{{ 'Решена' if item.status == 'Закрыта' else item.status }}</span></p>
+      <p><strong>Исполнитель:</strong> {% for e in employees if e.id == item.assignee_id %}{{ e.name }}{% else %}Не назначен{% endfor %}</p>
+      {% if not item.assignee_id and item.status not in ('Решена', 'Отклонена', 'Закрыта') %}<form method="post" action="{{ url_for('claim_ticket', ticket_id=item.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button>Взять заявку себе</button></form>{% endif %}
+      {% if can_edit and item.status not in ('В работе', 'Решена', 'Отклонена', 'Закрыта') %}
+      <form method="post" action="{{ url_for('admin_ticket', ticket_id=item.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="version" value="{{ item.version }}"><input type="hidden" name="status" value="В работе"><input type="hidden" name="assignee_id" value="{{ item.assignee_id or current_employee.id }}"><input type="hidden" name="visibility" value="public"><input type="hidden" name="comment" value="Заявка принята, приступаем к работе."><button>Принять в работу и сообщить заявителю</button></form>{% endif %}
+    </section>
+    <section class="surface"><h2>Фотографии</h2>{% for a in attachments %}<a href="{{ url_for('admin_attachment', attachment_id=a.id) }}">Скачать фото {{ a.id }}</a>{% else %}<p>Нет фотографий</p>{% endfor %}</section>
+    <section class="surface"><h2>История (UTC)</h2><ol class="history">{% for h in history %}<li>{{ h.created_at }} — {{ h.author or 'Заявитель' }} — {{ 'публично' if h.is_public else 'внутреннее' }}: {{ h.change_description }}{% if h.comment %}<p class="ticket-description">{{ h.comment }}</p>{% endif %}</li>{% else %}<li>Изменений пока нет.</li>{% endfor %}</ol></section>
+  </div>
+  <div>
+  {% if can_edit %}
+    <section class="surface"><h2>Изменить заявку</h2>
+      {% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+      <form method="post" class="stack"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="version" value="{{ item.version }}">
+        <label class="field">Статус<select name="status">{% for s in statuses %}<option {% if (request.form.get('status', item.status) == s or (item.status == 'Закрыта' and s == 'Решена')) %}selected{% endif %}>{{ s }}</option>{% endfor %}</select></label>
+        {% if current_employee.role == 'admin' %}<label class="field">Исполнитель<select name="assignee_id"><option value="">Не назначен</option>{% for e in employees %}<option value="{{ e.id }}" {% if request.form.get('assignee_id', item.assignee_id|string) == e.id|string %}selected{% endif %}>{{ e.name }}</option>{% endfor %}</select></label>{% else %}<input type="hidden" name="assignee_id" value="{{ item.assignee_id }}">{% endif %}
+        <label class="field">Комментарий / итог / причина отклонения<textarea name="comment" maxlength="5000" rows="5">{{ request.form.get('comment', '') }}</textarea></label>
+        <label class="field">Видимость<select name="visibility"><option value="internal" {% if request.form.get('visibility') == 'internal' %}selected{% endif %}>Внутренняя заметка</option><option value="public" {% if request.form.get('visibility') == 'public' %}selected{% endif %}>Публичный комментарий</option></select></label>
+        <p class="safety-note">При переходе в «Решена» или «Отклонена» укажите публичный итог или причину.</p><button>Сохранить</button>
+      </form>
+    </section>
+  {% else %}<p>Изменять заявку может администратор или назначенный исполнитель.</p>{% endif %}
+  </div>
 </div>
-<section><h2>Фотографии</h2>
-{% for a in attachments %}<a href="{{ url_for('admin_attachment', attachment_id=a.id) }}">Скачать фото {{ a.id }}</a>{% else %}<p>Нет фотографий</p>{% endfor %}
-</section>
-{% if not item.assignee_id and item.status not in ('Решена', 'Отклонена', 'Закрыта') %}
-<form method="post" action="{{ url_for('claim_ticket', ticket_id=item.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button>Взять заявку себе</button></form>
-{% endif %}
-{% if can_edit and item.status not in ('В работе', 'Решена', 'Отклонена', 'Закрыта') %}
-<form method="post" action="{{ url_for('admin_ticket', ticket_id=item.id) }}">
-<input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="version" value="{{ item.version }}">
-<input type="hidden" name="status" value="В работе"><input type="hidden" name="assignee_id" value="{{ item.assignee_id or current_employee.id }}">
-<input type="hidden" name="visibility" value="public"><input type="hidden" name="comment" value="Заявка принята, приступаем к работе.">
-<button>Принять в работу и сообщить заявителю</button></form>{% endif %}
-{% if can_edit %}
-<section><h2>Изменить заявку</h2>
-{% if error %}<p role="alert">{{ error }}</p>{% endif %}
-<form method="post" class="stack">
-<input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-<input type="hidden" name="version" value="{{ item.version }}">
-<label>Статус <select name="status">{% for s in statuses %}<option {% if (request.form.get('status', item.status) == s or (item.status == 'Закрыта' and s == 'Решена')) %}selected{% endif %}>{{ s }}</option>{% endfor %}</select></label>
-{% if current_employee.role == 'admin' %}
-<label>Исполнитель <select name="assignee_id"><option value="">Не назначен</option>{% for e in employees %}<option value="{{ e.id }}" {% if request.form.get('assignee_id', item.assignee_id|string) == e.id|string %}selected{% endif %}>{{ e.name }}</option>{% endfor %}</select></label>
-{% else %}<input type="hidden" name="assignee_id" value="{{ item.assignee_id }}">{% endif %}
-<label>Комментарий / итог / причина отклонения <textarea name="comment" maxlength="5000" rows="5">{{ request.form.get('comment', '') }}</textarea></label>
-<label>Видимость <select name="visibility"><option value="internal" {% if request.form.get('visibility') == 'internal' %}selected{% endif %}>Внутренняя заметка</option><option value="public" {% if request.form.get('visibility') == 'public' %}selected{% endif %}>Публичный комментарий</option></select></label>
-<p>При переходе в «Решена» или «Отклонена» укажите публичный итог или причину.</p>
-<button>Сохранить</button>
-</form></section>
-{% else %}<p>Изменять заявку может администратор или назначенный исполнитель.</p>{% endif %}
-<section><h2>История (UTC)</h2><ol class="history">{% for h in history %}<li>{{ h.created_at }} — {{ h.author or 'Заявитель' }} — {{ 'публично' if h.is_public else 'внутреннее' }}: {{ h.change_description }}{% if h.comment %}<p class="ticket-description">{{ h.comment }}</p>{% endif %}</li>{% else %}<li>Изменений пока нет.</li>{% endfor %}</ol></section>
 </div>
 {% endblock %}

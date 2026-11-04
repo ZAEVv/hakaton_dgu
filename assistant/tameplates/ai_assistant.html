@@ -1,22 +1,18 @@
 <section class="ai-assistant" aria-labelledby="ai-heading" data-chat-owner="{{ current_applicant.id }}">
-  <div class="assistant-heading"><span class="assistant-symbol" aria-hidden="true">?</span><div><h2 id="ai-heading">Чат с помощником</h2><p>Поможет описать проблему и выбрать место</p></div></div>
-  <p class="form-note">Опишите проблему. Сообщение будет отправлено в DeepSeek. Не указывайте пароли и лишние личные данные.</p>
+  <header class="assistant-heading"><h2 id="ai-heading">Чат с помощником</h2><p>Поможет описать проблему и выбрать место</p></header>
+  <p>Опишите проблему. Сообщение будет отправлено в DeepSeek. Не указывайте пароли и лишние личные данные.</p>
   <div id="chat-messages" class="chat-messages" role="log" aria-live="polite"><p class="chat-bubble assistant-bubble">Здравствуйте! Расскажите, что случилось. Я помогу создать заявку и передать её сотруднику.</p></div>
   <div id="chat-location" hidden>
     <h3>Черновик заявки</h3>
-    <p class="form-note">Проверьте и при необходимости исправьте данные. Заявка будет отправлена только после нажатия кнопки ниже.</p>
-    <label for="chat-description">Описание проблемы</label>
-    <textarea id="chat-description" maxlength="5000" rows="4"></textarea>
-    <label for="chat-category">Категория</label>
-    <select id="chat-category"><option value="">Выберите категорию</option>{% for category in categories %}<option value="{{ category }}">{{ category }}</option>{% endfor %}</select>
-    <label for="chat-room">Где возникла проблема?</label>
-    <select id="chat-room"><option value="">Выберите место</option>{% for room in rooms %}<option value="{{ room.id }}" data-building="{{ room.building }}">{{ room.building }} — {{ room.name }}</option>{% endfor %}</select>
+    <p>Проверьте и при необходимости исправьте данные. Заявка будет отправлена только после нажатия кнопки ниже.</p>
+    <div class="field"><label for="chat-description">Описание проблемы</label><textarea id="chat-description" maxlength="5000" rows="4"></textarea></div>
+    <div class="field"><label for="chat-category">Категория</label><select id="chat-category"><option value="">Выберите категорию</option>{% for category in categories %}<option value="{{ category }}">{{ category }}</option>{% endfor %}</select></div>
+    <div class="field"><label for="chat-room">Где возникла проблема?</label><select id="chat-room"><option value="">Выберите место</option>{% for room in rooms %}<option value="{{ room.id }}" data-building="{{ room.building }}">{{ room.building }} — {{ room.name }}</option>{% endfor %}</select></div>
     <button type="button" id="chat-send-ticket">Отправить обращение администратору</button>
   </div>
-  <label for="ai-message">Ваше сообщение</label>
-  <textarea id="ai-message" maxlength="2000" rows="3" placeholder="Например: в кабинете не работает проектор"></textarea>
-  <small>Enter — отправить, Shift+Enter — новая строка.</small>
+  <p id="chat-privacy">Текст, включая неотправленный, и черновик сохраняются в sessionStorage этой вкладки и могут восстановиться после перезапуска браузера. Не вводите пароли и лишние личные данные; на общем устройстве не используйте чат для конфиденциальных сведений.</p>
+  <div class="field"><label for="ai-message">Ваше сообщение</label><textarea id="ai-message" maxlength="2000" rows="3" placeholder="Например: в кабинете не работает проектор" aria-describedby="chat-help chat-privacy"></textarea><small id="chat-help">Enter — отправить, Shift+Enter — новая строка.</small></div>
   <button type="button" id="ai-send">Отправить сообщение</button>
   <button type="button" id="chat-new" hidden>Начать новое обращение</button>
-  <p class="form-note">Перед отправкой проверьте черновик и подтвердите отправку заявки.</p>
+  <p>Перед отправкой проверьте черновик и подтвердите отправку заявки.</p>
 </section>

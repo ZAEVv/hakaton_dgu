@@ -2,8 +2,10 @@
 {% block title %}Не удалось выполнить действие — Служба колледжа{% endblock %}
 {% block content %}
 <div class="layout-error">
-<h1>Не удалось выполнить действие</h1>
-<p role="alert">{{ message }}</p>
-<p><a href="{{ url_for('account') }}">Личный кабинет</a> · <a href="{{ url_for('index') }}">Вернуться к форме</a></p>
+  <section class="surface" aria-labelledby="error-heading">
+    <h1 id="error-heading">Не удалось выполнить действие</h1>
+    <p class="error" role="alert">{{ message }}</p>
+    <nav aria-label="Дальнейшие действия"><a href="{{ url_for('account') }}">Личный кабинет</a> · <a href="{{ url_for('index') }}">Вернуться к форме</a></nav>
+  </section>
 </div>
 {% endblock %}

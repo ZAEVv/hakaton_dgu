@@ -73,7 +73,7 @@ class HelpdeskTests(unittest.TestCase):
         self.assertRegex(html, r'<option value="Тестовый"\s+selected>')
         self.assertRegex(html, r'<option value="1" data-building="Тестовый"\s+selected>')
         self.assertRegex(html, r'<option value="Электрика"\s+selected>')
-        self.assertNotRegex(self.client.get('/').get_data(as_text=True), r'<details\s+id="manual-form"\s+open')
+        self.assertRegex(self.client.get('/').get_data(as_text=True), r'<details\s+id="manual-form"\s+open')
 
     def test_create_photo_history_and_retry(self):
         photo = io.BytesIO()

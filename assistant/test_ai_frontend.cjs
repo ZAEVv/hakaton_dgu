@@ -73,6 +73,16 @@ test('failed submission preserves draft and request key for explicit retry', asy
   const requests=h.calls.filter(c=>c.url==='/'); assert.equal(requests.length,2);
   assert.equal(requests[0].opts.body.values.request_key,requests[1].opts.body.values.request_key);
 });
+test('cross-origin ticket redirect is rejected and keeps the draft for retry', async()=>{
+  const h=harness({qr:'1'}); await message(h,'Не горит свет');
+  h.setTicketHandler(async()=>({ok:true,redirected:true,url:'https://evil.example/account/tickets/42'}));
+  await h.ids['chat-send-ticket'].click();
+  assert.equal(h.ids['chat-description'].value,'Не горит свет');
+  assert.equal(h.ids['ai-send'].disabled,false);
+  assert.ok(!h.ids['chat-messages'].children.some(c=>c.href==='https://evil.example/account/tickets/42'));
+  assert.equal(JSON.parse(h.store['college-chat-1']).requestKey,'uuid');
+});
+
 test('missing description or location does not submit', async()=>{
   const h=harness(); await message(h,'Не горит свет'); await h.ids['chat-send-ticket'].click();
   h.ids['chat-room'].value='1'; h.ids['chat-description'].value='  '; await h.ids['chat-send-ticket'].click();

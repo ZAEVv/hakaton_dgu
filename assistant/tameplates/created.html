@@ -2,25 +2,26 @@
 {% block title %}Заявка № {{ number }} — Служба колледжа{% endblock %}
 {% block content %}
 <div class="layout-created">
-<h1>Заявка № {{ number }}</h1>
-<p>Заявка сохранена в вашем личном кабинете.</p>
-<div class="ticket-summary">
-<section aria-label="Данные заявки"><h2>Данные заявки</h2><dl>
-<dt>Текущий статус</dt><dd><strong>{{ 'Решена' if item.status == 'Закрыта' else item.status }}</strong></dd>
-<dt>Дата создания</dt><dd>{{ item.created_at }} (UTC)</dd>
-<dt>Описание</dt><dd class="ticket-text">{{ item.description }}</dd>
-<dt>Категория</dt><dd>{{ item.category }}</dd>
-<dt>Помещение</dt><dd>{{ item.building }}, {{ item.room }}</dd></dl></section>
-</div>
-<section aria-label="Фотографии"><h2>Фотографии</h2>{% for a in attachments %}<p><a href="{{ url_for('account_attachment', attachment_id=a.id) }}">Скачать фото {{ a.id }}</a></p>{% else %}<p>Нет фотографий.</p>{% endfor %}</section>
-<section aria-label="История заявки"><h2>Чат по заявке</h2>
-{% if history %}<ol class="account-history conversation">{% for entry in history %}<li class="conversation-entry {{ 'from-user' if entry.author == 'Вы' else 'from-staff' }}"><div class="conversation-meta"><strong>{{ entry.author }}</strong><time>{{ entry.date }} UTC</time></div><p class="ticket-text">{{ entry.change }}</p>{% if entry.comment %}<p class="ticket-text">{{ entry.comment }}</p>{% endif %}</li>{% endfor %}</ol>{% else %}<p>История пока пуста.</p>{% endif %}</section>
-{% if item.status not in ('Решена', 'Отклонена', 'Закрыта') %}
-<section aria-label="Ответ заявителя"><h2>Написать сотруднику</h2>
-{% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
-<form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-<label for="reply">Ваш ответ</label><textarea id="reply" name="comment" required maxlength="5000" rows="4">{{ request.form.get('comment', '') }}</textarea>
-<p class="form-note">Ваш ответ увидит сотрудник; статус изменит ответственный сотрудник.</p><button>Отправить ответ</button></form></section>
-{% endif %}
+  <header class="page-heading"><h1>Заявка № {{ number }}</h1><p>Заявка сохранена в вашем личном кабинете.</p></header>
+  <div class="layout-grid">
+    <section class="surface" aria-labelledby="ticket-details"><h2 id="ticket-details">Данные заявки</h2><dl>
+      <dt>Текущий статус</dt><dd class="status"><strong>{{ 'Решена' if item.status == 'Закрыта' else item.status }}</strong></dd>
+      <dt>Дата создания</dt><dd>{{ item.created_at }} (UTC)</dd><dt>Описание</dt><dd class="ticket-text">{{ item.description }}</dd>
+      <dt>Категория</dt><dd>{{ item.category }}</dd><dt>Помещение</dt><dd>{{ item.building }}, {{ item.room }}</dd>
+    </dl></section>
+    <section class="surface" aria-labelledby="photos-heading"><h2 id="photos-heading">Фотографии</h2>{% for a in attachments %}<p><a href="{{ url_for('account_attachment', attachment_id=a.id) }}">Скачать фото {{ a.id }}</a></p>{% else %}<p>Нет фотографий.</p>{% endfor %}</section>
+  </div>
+  <section aria-labelledby="history-heading"><h2 id="history-heading">Чат по заявке</h2>
+    {% if history %}<ol class="account-history conversation">{% for entry in history %}<li class="conversation-entry {{ 'from-user' if entry.author == 'Вы' else 'from-staff' }}"><div class="conversation-meta"><strong>{{ entry.author }}</strong> <time>{{ entry.date }} UTC</time></div><p class="ticket-text">{{ entry.change }}</p>{% if entry.comment %}<p class="ticket-text">{{ entry.comment }}</p>{% endif %}</li>{% endfor %}</ol>{% else %}<p>История пока пуста.</p>{% endif %}
+  </section>
+  {% if item.status not in ('Решена', 'Отклонена', 'Закрыта') %}
+  <section class="surface" aria-labelledby="reply-heading"><h2 id="reply-heading">Написать сотруднику</h2>
+    {% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+    <form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <div class="field"><label for="reply">Ваш ответ</label><textarea id="reply" name="comment" required maxlength="5000" rows="4" aria-describedby="reply-help">{{ request.form.get('comment', '') }}</textarea><small id="reply-help">Ваш ответ увидит сотрудник; статус изменит ответственный сотрудник.</small></div>
+      <button type="submit">Отправить ответ</button>
+    </form>
+  </section>
+  {% endif %}
 </div>
 {% endblock %}
