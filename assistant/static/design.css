@@ -84,7 +84,7 @@ textarea { resize: vertical; min-height: 120px; }
 textarea::placeholder, input::placeholder { color: var(--muted); opacity: 1; }
 button { width: auto; min-height: 44px; padding: 10px 20px; margin: 6px 0 12px; border: 1px solid transparent; background: var(--blue); color: var(--paper); font-weight: 700; cursor: pointer; }
 button:hover:not(:disabled) { background: var(--hover); }
-.account-nav button:hover:not(:disabled), .site-header nav button:hover:not(:disabled) { background: var(--tint); }
+.account-nav button:hover:not(:disabled), .site-header nav button:hover:not(:disabled) { color: var(--blue); background: var(--tint); }
 button:disabled, select:disabled { opacity: .55; cursor: not-allowed; }
 button, a, summary { -webkit-tap-highlight-color: transparent; }
 :focus-visible { outline: 3px solid var(--focus); outline-offset: 4px; }

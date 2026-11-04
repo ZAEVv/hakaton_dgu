@@ -10,7 +10,7 @@
     {% if qr_notice %}<p class="form-note" role="status">{{ qr_notice }}</p>{% endif %}
     {% if not rooms %}<p class="error" role="alert">Нет доступных помещений. Обратитесь к сотруднику колледжа.</p>{% endif %}
     {% include 'ai_assistant.html' %}
-    <details id="manual-form"><summary>Заполнить заявку вручную или прикрепить фото</summary>
+    <details id="manual-form"{% if error %} open{% endif %}><summary>Заполнить заявку вручную или прикрепить фото</summary>
     <p class="form-note">Все поля обязательны, кроме фотографии.</p>
     <form method="post" enctype="multipart/form-data" id="ticket-form">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">

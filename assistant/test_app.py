@@ -62,6 +62,19 @@ class HelpdeskTests(unittest.TestCase):
         with app.app_context():
             self.assertEqual(db().execute('SELECT count(*) FROM tickets').fetchone()[0], 0)
 
+    def test_server_error_keeps_manual_form_open_and_values(self):
+        data = self.form_data()
+        data['request_key'] = 'invalid'
+        response = self.client.post('/', data=data)
+        self.assertEqual(response.status_code, 400)
+        html = response.get_data(as_text=True)
+        self.assertRegex(html, r'<details\s+id="manual-form"\s+open\s*>')
+        self.assertIn('>Сломана лампа</textarea>', html)
+        self.assertRegex(html, r'<option value="Тестовый"\s+selected>')
+        self.assertRegex(html, r'<option value="1" data-building="Тестовый"\s+selected>')
+        self.assertRegex(html, r'<option value="Электрика"\s+selected>')
+        self.assertNotRegex(self.client.get('/').get_data(as_text=True), r'<details\s+id="manual-form"\s+open')
+
     def test_create_photo_history_and_retry(self):
         photo = io.BytesIO()
         Image.new('RGB', (2, 2)).save(photo, format='PNG')

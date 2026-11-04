@@ -47,6 +47,13 @@ class StaffTests(unittest.TestCase):
         self.assertIn('Открыто: <strong>1</strong>', page)
         self.assertIn('Решено: <strong>1</strong>', page)
 
+    def test_ticket_table_scroll_region_has_keyboard_access_and_instructions(self):
+        self.login()
+        page = self.client.get('/admin').get_data(as_text=True)
+        self.assertIn('role="region" aria-label="Таблица заявок" tabindex="0" aria-describedby="table-scroll-help"', page)
+        self.assertIn('id="table-scroll-help"', page)
+        self.assertIn('стрелками', page)
+
     def test_empty_statistics_show_empty_distributions(self):
         self.login()
         page = self.client.get('/admin').get_data(as_text=True)
