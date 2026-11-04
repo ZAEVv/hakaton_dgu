@@ -1,4 +1,4 @@
-<section class="ai-assistant" aria-labelledby="ai-heading">
+<section class="ai-assistant" aria-labelledby="ai-heading" data-chat-owner="{{ current_applicant.id }}">
   <h2 id="ai-heading">Чат с помощником</h2>
   <p class="form-note">Опишите проблему. Сообщение будет отправлено в DeepSeek. Не указывайте пароли и лишние личные данные.</p>
   <div id="chat-messages" class="chat-messages" role="log" aria-live="polite"><p class="chat-bubble assistant-bubble">Здравствуйте! Расскажите, что случилось. Я помогу создать заявку и передать её сотруднику.</p></div>
@@ -9,6 +9,8 @@
   </div>
   <label for="ai-message">Ваше сообщение</label>
   <textarea id="ai-message" maxlength="2000" rows="3" placeholder="Например: в кабинете не работает проектор"></textarea>
+  <small>Enter — отправить, Shift+Enter — новая строка.</small>
   <button type="button" id="ai-send">Отправить сообщение</button>
+  <button type="button" id="chat-new" hidden>Начать новое обращение</button>
   <p class="form-note">После описания неисправности и выбора места заявка отправится сотрудникам автоматически.</p>
 </section>

@@ -16,7 +16,7 @@
 {% if can_edit and item.status not in ('В работе', 'Решена', 'Отклонена', 'Закрыта') %}
 <form method="post" action="{{ url_for('admin_ticket', ticket_id=item.id) }}">
 <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="version" value="{{ item.version }}">
-<input type="hidden" name="status" value="В работе"><input type="hidden" name="assignee_id" value="{{ item.assignee_id or '' }}">
+<input type="hidden" name="status" value="В работе"><input type="hidden" name="assignee_id" value="{{ item.assignee_id or current_employee.id }}">
 <input type="hidden" name="visibility" value="public"><input type="hidden" name="comment" value="Заявка принята, приступаем к работе.">
 <button>Принять в работу и сообщить заявителю</button></form>{% endif %}
 {% if can_edit %}

@@ -66,3 +66,9 @@ footer { max-width: 720px; margin: 20px auto 32px; padding: 0 28px; }
 #chat-location { margin: 18px 0; }
 #manual-form { border-top: 1px solid var(--line); margin-top: 24px; padding-top: 16px; }
 #manual-form summary { cursor: pointer; font-weight: 600; }
+.chat-link { display: inline-block; padding: 10px 0; font-weight: 700; }
+.conversation { list-style: none; padding: 14px; background: #f3f6fa; border-radius: 10px; }
+.account-history .conversation-entry { max-width: 90%; margin: 10px 0; padding: 12px 15px; border: 1px solid #dce4ee; border-radius: 12px; background: white; }
+.account-history .conversation-entry.from-user { margin-left: auto; background: #dceaff; border-color: #c4d9f4; }
+.conversation-meta { display: flex; justify-content: space-between; gap: 14px; flex-wrap: wrap; font-size: .8rem; color: var(--muted); margin-bottom: 6px; }
+.conversation-entry p { margin: 5px 0; }

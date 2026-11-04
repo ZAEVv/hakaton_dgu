@@ -314,13 +314,13 @@ def account_ticket(ticket_id):
                          (item['id'], g.applicant['id'], 'Ответ заявителя', comment))
             db().commit()
             return redirect(url_for('account_ticket', ticket_id=item['id']))
-    rows = db().execute('''SELECT created_at, change_description, comment, is_public
+    rows = db().execute('''SELECT created_at, change_description, comment, is_public, applicant_id, employee_id
                            FROM ticket_history WHERE ticket_id=? ORDER BY id''', (item['id'],)).fetchall()
     history = []
     valid_statuses = (*STATUSES, 'Закрыта')
     for row in rows:
         if row['is_public']:
-            history.append(dict(date=row['created_at'], change=row['change_description'], comment=row['comment']))
+            history.append(dict(date=row['created_at'], change=row['change_description'], comment=row['comment'], author='Вы' if row['applicant_id'] else ('Сотрудник' if row['employee_id'] else 'Система')))
         else:
             # Internal entries can combine a status change with private details.
             # Only reconstruct recognised status transitions; never expose the entry itself.
@@ -328,7 +328,7 @@ def account_ticket(ticket_id):
             for old in valid_statuses:
                 for new in valid_statuses:
                     if transition == f'Статус: {old} → {new}':
-                        history.append(dict(date=row['created_at'], change=transition, comment=None))
+                        history.append(dict(date=row['created_at'], change=transition, comment=None, author='Система'))
     attachments = db().execute('SELECT id FROM attachments WHERE ticket_id=?', (item['id'],)).fetchall()
     return render_template('created.html', number=item['id'], item=item, history=history, attachments=attachments,
                            csrf_token=csrf_token(), error=error), 400 if error else 200
