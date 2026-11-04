@@ -61,8 +61,8 @@ class StaffTests(unittest.TestCase):
             self.assertEqual(ticket['assignee_id'], 1)
             self.assertTrue(db().execute("SELECT 1 FROM ticket_history WHERE employee_id=1 AND comment='Заменена лампа'").fetchone())
 
-    def test_all_seven_statuses_can_be_selected_and_saved(self):
-        statuses = ('Новая', 'На рассмотрении', 'Назначен исполнитель', 'В работе', 'Нужны уточнения', 'Решена', 'Отклонена')
+    def test_all_eight_statuses_can_be_selected_and_saved(self):
+        statuses = ('Новая', 'На рассмотрении', 'Поиск свободного сотрудника', 'Назначен исполнитель', 'В работе', 'Нужны уточнения', 'Решена', 'Отклонена')
         with app.app_context():
             db().execute("INSERT INTO rooms VALUES (1,'Корпус','101')")
             db().execute("INSERT INTO tickets (description,category,room_id) VALUES ('Лампа','Электрика',1)")

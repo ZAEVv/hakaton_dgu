@@ -34,7 +34,14 @@ app.config.update(
     MAX_CONTENT_LENGTH=5 * 1024 * 1024,
 )
 CATEGORIES = ('Электрика', 'Сантехника', 'Мебель', 'Оборудование', 'Другое')
-STATUSES = ('Новая', 'На рассмотрении', 'Назначен исполнитель', 'В работе', 'Нужны уточнения', 'Решена', 'Отклонена')
+STATUSES = ('Новая', 'На рассмотрении', 'Поиск свободного сотрудника', 'Назначен исполнитель', 'В работе', 'Нужны уточнения', 'Решена', 'Отклонена')
+APPLICANT_STAGES = (
+    ('Отправлено', 'Новая'),
+    ('Просмотрено', 'На рассмотрении'),
+    ('Поиск свободного сотрудника', 'Поиск свободного сотрудника'),
+    ('В работе', 'В работе'),
+    ('Выполнено', 'Решена'),
+)
 
 
 def db():
@@ -177,10 +184,37 @@ def index():
 
 @app.get('/ticket/<token>')
 def ticket(token):
-    item = db().execute('SELECT tickets.id FROM tickets JOIN ticket_access ON tickets.id = ticket_access.ticket_id WHERE ticket_access.token = ?', (token,)).fetchone()
+    item = db().execute('''SELECT t.id, t.created_at, t.description, t.category, t.status,
+                                  r.building, r.name AS room
+                           FROM tickets t JOIN ticket_access a ON a.ticket_id=t.id
+                           JOIN rooms r ON r.id=t.room_id WHERE a.token=?''', (token,)).fetchone()
     if not item:
         abort(404)
-    return render_template('created.html', number=item['id'])
+    rows = db().execute('''SELECT created_at, change_description, comment, is_public
+                           FROM ticket_history WHERE ticket_id=? ORDER BY id''', (item['id'],)).fetchall()
+    history = []
+    valid_statuses = (*STATUSES, 'Закрыта')
+    observed = {'Новая', 'Решена' if item['status'] == 'Закрыта' else item['status']}
+    for row in rows:
+        transition = row['change_description'].split(';', 1)[0]
+        for old in valid_statuses:
+            for new in valid_statuses:
+                if transition == f'Статус: {old} → {new}':
+                    observed.update('Решена' if value == 'Закрыта' else value for value in (old, new))
+        if row['is_public']:
+            history.append(dict(date=row['created_at'], change=row['change_description'], comment=row['comment']))
+        else:
+            # Internal entries can combine a status change with private details.
+            # Only reconstruct recognised status transitions; never expose the entry itself.
+            transition = row['change_description'].split(';', 1)[0]
+            for old in valid_statuses:
+                for new in valid_statuses:
+                    if transition == f'Статус: {old} → {new}':
+                        history.append(dict(date=row['created_at'], change=transition, comment=None))
+    current = 'Решена' if item['status'] == 'Закрыта' else item['status']
+    stages = [dict(label=label, state=('current' if status == current else 'observed' if status in observed else 'unknown'))
+              for label, status in APPLICANT_STAGES]
+    return render_template('created.html', number=item['id'], item=item, history=history, stages=stages)
 
 
 def csrf_token():

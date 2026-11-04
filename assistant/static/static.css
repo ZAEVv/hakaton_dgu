@@ -47,6 +47,13 @@ a { color: var(--blue); text-underline-offset: 3px; }
 .secret-section { padding-top: 24px; margin: 24px 0; border-top: 1px solid var(--line); }
 .secret-section input { margin-bottom: 10px; }
 .copy-status { min-height: 24px; color: var(--muted); font-size: .9rem; }
+.stages { padding-left: 1.75rem; }
+.stage { padding: 8px 10px; border-left: 3px solid var(--line); overflow-wrap: anywhere; }
+.stage + .stage { margin-top: 4px; }
+.stage strong, .stage span { display: block; }
+.stage span { color: var(--muted); font-size: .875rem; }
+.stage--current { border-color: var(--blue); background: #e5edfa; }
+.stage--observed { border-color: #216548; }
 footer { max-width: 720px; margin: 20px auto 32px; padding: 0 28px; }
 @media (max-width: 540px) {
   .site-header { margin: 18px 0; padding: 0 20px; }

@@ -21,7 +21,40 @@
       <p class="copy-status" id="copy-status" role="status"></p>
       <noscript><p>Выделите и скопируйте ссылку из поля выше.</p></noscript>
     </section>
-    <p class="form-note">Отслеживание статуса пока недоступно. Ссылка открывает подтверждение создания заявки.</p>
+    <section aria-label="Данные заявки">
+      <h2>Данные заявки</h2>
+      <dl>
+        <dt>Дата создания</dt><dd>{{ item.created_at }} (UTC)</dd>
+        <dt>Описание</dt><dd>{{ item.description }}</dd>
+        <dt>Категория</dt><dd>{{ item.category }}</dd>
+        <dt>Помещение</dt><dd>{{ item.building }}, {{ item.room }}</dd>
+        <dt>Текущий статус</dt><dd>{{ 'Решена' if item.status == 'Закрыта' else item.status }}</dd>
+      </dl>
+    </section>
+    <section aria-labelledby="stages-heading">
+      <h2 id="stages-heading">Этапы заявки</h2>
+      <p class="form-note">Показаны зафиксированные статусы; пропущенные этапы могут отсутствовать. «Просмотрено» соответствует статусу «На рассмотрении» и не подтверждает факт просмотра. «Поиск свободного сотрудника» соответствует одноимённому статусу. Статус и исполнитель задаются независимо.</p>
+      <ol class="stages">
+        {% for stage in stages %}
+        <li class="stage stage--{{ stage.state }}"{% if stage.state == 'current' %} aria-current="step"{% endif %}>
+          <strong>{{ stage.label }}</strong><span>{% if stage.state == 'current' %}Текущий этап{% elif stage.state == 'observed' %}Зафиксирован ранее{% else %}Не зафиксирован{% endif %}</span>
+        </li>
+        {% endfor %}
+      </ol>
+      {% if item.status in ('Назначен исполнитель', 'Нужны уточнения', 'Отклонена') %}
+      <p><strong>Текущее состояние: {{ item.status }}.</strong></p>
+      {% endif %}
+    </section>
+    <section aria-label="История заявки">
+      <h2>История заявки</h2>
+      {% if history %}
+      <ol>
+        {% for entry in history %}
+        <li><time>{{ entry.date }} (UTC)</time> — {{ entry.change }}{% if entry.comment %}<p>{{ entry.comment }}</p>{% endif %}</li>
+        {% endfor %}
+      </ol>
+      {% else %}<p>История пока пуста.</p>{% endif %}
+    </section>
     <a href="{{ url_for('index') }}">Подать ещё одну заявку</a>
   </main>
 </body>
