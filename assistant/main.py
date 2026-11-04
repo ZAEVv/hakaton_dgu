@@ -34,7 +34,14 @@ app.config.update(
     MAX_CONTENT_LENGTH=5 * 1024 * 1024,
 )
 CATEGORIES = ('Электрика', 'Сантехника', 'Мебель', 'Оборудование', 'Другое')
-STATUSES = ('Новая', 'На рассмотрении', 'Назначен исполнитель', 'В работе', 'Нужны уточнения', 'Решена', 'Отклонена')
+STATUSES = ('Новая', 'На рассмотрении', 'Поиск свободного сотрудника', 'Назначен исполнитель', 'В работе', 'Нужны уточнения', 'Решена', 'Отклонена')
+APPLICANT_STAGES = (
+    ('Отправлено', 'Новая'),
+    ('Просмотрено', 'На рассмотрении'),
+    ('Поиск свободного сотрудника', 'Поиск свободного сотрудника'),
+    ('В работе', 'В работе'),
+    ('Выполнено', 'Решена'),
+)
 
 
 def db():
@@ -187,7 +194,13 @@ def ticket(token):
                            FROM ticket_history WHERE ticket_id=? ORDER BY id''', (item['id'],)).fetchall()
     history = []
     valid_statuses = (*STATUSES, 'Закрыта')
+    observed = {'Новая', 'Решена' if item['status'] == 'Закрыта' else item['status']}
     for row in rows:
+        transition = row['change_description'].split(';', 1)[0]
+        for old in valid_statuses:
+            for new in valid_statuses:
+                if transition == f'Статус: {old} → {new}':
+                    observed.update('Решена' if value == 'Закрыта' else value for value in (old, new))
         if row['is_public']:
             history.append(dict(date=row['created_at'], change=row['change_description'], comment=row['comment']))
         else:
@@ -198,7 +211,10 @@ def ticket(token):
                 for new in valid_statuses:
                     if transition == f'Статус: {old} → {new}':
                         history.append(dict(date=row['created_at'], change=transition, comment=None))
-    return render_template('created.html', number=item['id'], item=item, history=history)
+    current = 'Решена' if item['status'] == 'Закрыта' else item['status']
+    stages = [dict(label=label, state=('current' if status == current else 'observed' if status in observed else 'unknown'))
+              for label, status in APPLICANT_STAGES]
+    return render_template('created.html', number=item['id'], item=item, history=history, stages=stages)
 
 
 def csrf_token():

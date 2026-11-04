@@ -31,6 +31,20 @@
         <dt>Текущий статус</dt><dd>{{ 'Решена' if item.status == 'Закрыта' else item.status }}</dd>
       </dl>
     </section>
+    <section aria-labelledby="stages-heading">
+      <h2 id="stages-heading">Этапы заявки</h2>
+      <p class="form-note">Показаны зафиксированные статусы; пропущенные этапы могут отсутствовать. «Просмотрено» соответствует статусу «На рассмотрении» и не подтверждает факт просмотра. «Поиск свободного сотрудника» соответствует одноимённому статусу. Статус и исполнитель задаются независимо.</p>
+      <ol class="stages">
+        {% for stage in stages %}
+        <li class="stage stage--{{ stage.state }}"{% if stage.state == 'current' %} aria-current="step"{% endif %}>
+          <strong>{{ stage.label }}</strong><span>{% if stage.state == 'current' %}Текущий этап{% elif stage.state == 'observed' %}Зафиксирован ранее{% else %}Не зафиксирован{% endif %}</span>
+        </li>
+        {% endfor %}
+      </ol>
+      {% if item.status in ('Назначен исполнитель', 'Нужны уточнения', 'Отклонена') %}
+      <p><strong>Текущее состояние: {{ item.status }}.</strong></p>
+      {% endif %}
+    </section>
     <section aria-label="История заявки">
       <h2>История заявки</h2>
       {% if history %}
