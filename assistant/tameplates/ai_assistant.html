@@ -5,7 +5,7 @@
   <div id="chat-location" hidden>
     <label for="chat-room">Где возникла проблема?</label>
     <select id="chat-room"><option value="">Выберите место</option>{% for room in rooms %}<option value="{{ room.id }}" data-building="{{ room.building }}">{{ room.building }} — {{ room.name }}</option>{% endfor %}</select>
-    <button type="button" id="chat-send-ticket">Отправить заявку в выбранное место</button>
+    <button type="button" id="chat-send-ticket">Отправить обращение администратору</button>
   </div>
   <label for="ai-message">Ваше сообщение</label>
   <textarea id="ai-message" maxlength="2000" rows="3" placeholder="Например: в кабинете не работает проектор"></textarea>

@@ -42,7 +42,7 @@
       const link = document.createElement('a');
       link.href = response.url; link.textContent = 'Открыть заявку и переписку';
       const number = new URL(response.url).pathname.split('/').pop();
-      say(`Заявка № ${number} отправлена. Сотрудник увидит её в своей панели.`);
+      say(`Обращение № ${number} направлено администратору. Статус: новая. После принятия в работу вы увидите ответ и новый статус в профиле.`);
       link.className = 'chat-link';
       log.appendChild(link);
       draft = null; messages = []; locationBox.hidden = true;
@@ -59,6 +59,30 @@
   send.addEventListener('click', async () => {
     const text = input.value.trim();
     if (!text || busy || pending) return;
+    // If the applicant asks us to notify staff after an emergency warning, keep the
+    // original problem instead of treating the instruction as a new incident.
+    const notifyIntent = /(?:сообщ|отправ|переда|администратор|сотрудник)/i.test(text);
+    if (!draft && notifyIntent) {
+      const previous = [...transcript].reverse().find(entry => entry.who === 'user' && /искр|дым|гар[ьи]|горит|пожар|провод|удар.*ток/i.test(entry.text));
+      if (previous) draft = {type:'danger', category:'Другое', draft:previous.text};
+    }
+    if (draft && !locationBox.hidden) {
+      say(text, 'user'); input.value = '';
+      const cleaned = text.trim().toLocaleLowerCase('ru-RU');
+      const matches = Array.from(location.options).filter(option => option.value && (option.text.toLocaleLowerCase('ru-RU') === cleaned || option.text.toLocaleLowerCase('ru-RU').includes(cleaned)));
+      if (matches.length === 1) {
+        location.value = matches[0].value; save();
+        await createTicket();
+      } else {
+        say('Укажите место, выбрав его из списка. Затем нажмите «Отправить обращение администратору».');
+      }
+      return;
+    }
+    if (draft && notifyIntent) {
+      say(text, 'user'); input.value = ''; locationBox.hidden = false; save();
+      say('Конечно, передам обращение администратору. Сначала выберите место из списка.');
+      return;
+    }
     draft = null; locationBox.hidden = true;
     say(text, 'user'); input.value = ''; messages.push(text); save();
     const combined = messages.join('\n').slice(-2000);
@@ -70,7 +94,14 @@
       if (data.answer) say(data.answer);
       if (data.question) say(data.question);
       if (data.source) say(`Источник: ${data.source}`);
-      if (data.type === 'danger') { draft = null; messages = []; locationBox.hidden = true; }
+      if (data.type === 'danger') {
+        draft = {type:'danger', category:'Другое', draft:combined};
+        const qrRoom = form.elements.room_id.value;
+        if (qrRoom && Array.from(location.options).some(o => o.value === qrRoom)) location.value = qrRoom;
+        locationBox.hidden = false;
+        if (!location.value) say('Чтобы я направил обращение администратору, выберите место из списка. Пока не подходите к оборудованию.');
+        save();
+      }
       if (data.type === 'question') messages = [];
       if (data.type === 'fault' && data.draft) {
         draft = data;
