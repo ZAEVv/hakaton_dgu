@@ -11,11 +11,15 @@ DANGER_TEXT = ('Возможна опасность. Отойдите, не тр
 UNKNOWN_TEXT = 'Проверенной информации недостаточно. Обратитесь к ответственному сотруднику колледжа.'
 # This is a conservative additional safeguard, not an exhaustive detector.
 DANGER_PATTERNS = [
-    r'искр', r'дым', r'запах\w*\s+(?:гари|горел|горящ)', r'\bгарью\b', r'горит', r'возгоран',
-    r'пожар', r'оголен\w*\s+провод', r'оголён\w*\s+провод', r'удар\w*\s+ток',
-    r'(?:меня|его|её|ее|кого-то)\s+ударил\w*\s+ток', r'теч\w*\s+газ', r'запах\w*\s+газа',
-    r'(?:ремонт|замен|почин|помен|чинить|вскры|разобра)\w*.{0,50}(?:проводк|розетк|электроприбор|электрощит)',
+    r'искр', r'дым', r'\bгар(?:ь|и|ью)\b', r'запах\w*\s+(?:горел|горящ)', r'горит', r'возгоран',
+    r'пожар', r'теч\w*\s+газ', r'запах\w*\s+газа',
 ]
+ELECTRICAL_OBJECT = (r'\b(?:электро)?провод(?:а|у|ом|е|ы|ов|ам|ами|ах|'
+                     r'к(?:а|и|е|у|ой|ою|ок|ам|ами|ах))?\b'
+                     r'|кабел|розетк|электроприбор|электрощит')
+ELECTRICAL_ACTION = r'ремонт|замен|почин|помен|\bменя\w+|чинить|вскры|разобра|разбирать'
+EXPOSED = r'оголен|оголи|поврежден|повреждена|повреждени|изоляци'
+SHOCK = r'удар|ударил|бьет|било|стукнул|поражен'
 
 
 class AssistantUnavailable(Exception):
@@ -24,7 +28,11 @@ class AssistantUnavailable(Exception):
 
 def danger_detected(text):
     value = text.casefold().replace('ё', 'е')
-    return any(re.search(pattern.replace('ё', 'е'), value) for pattern in DANGER_PATTERNS)
+    if any(re.search(pattern, value) for pattern in DANGER_PATTERNS):
+        return True
+    electrical = re.search(ELECTRICAL_OBJECT, value)
+    return bool((electrical and (re.search(ELECTRICAL_ACTION, value) or re.search(EXPOSED, value)))
+                or (re.search(r'\bток\w*', value) and re.search(SHOCK, value)))
 
 
 def _fixed_danger():
@@ -79,26 +87,31 @@ def assist(text, knowledge, categories, api_key, model='deepseek-flash', classif
         raise ValueError('Введите сообщение длиной от 1 до 2000 символов.')
     text = text.strip()
     if danger_detected(text):
-        result = _fixed_danger()
-        if summarize_danger and api_key:
-            try:
-                response = (classify or _fetch_classification)(text, [], categories, api_key, model)
-                summary = response.get('summary') if isinstance(response, dict) else None
-                if isinstance(summary, str) and 1 <= len(summary.strip()) <= 300:
-                    result['draft'] = summary.strip()
-            except AssistantUnavailable:
-                pass
-        return result
+        # Model-generated summaries can contain fabricated or hazardous instructions.
+        # Return only the fixed warning, even when summarize_danger was requested.
+        return _fixed_danger()
     # Never provide credentials, even if a knowledge record is selected incorrectly.
     if re.search(r'парол|ключ\w*\s+(?:доступа|wi.?fi|вай.?фай)|секретн\w*\s+код', text.casefold()):
         return _safe_response('question', answer='Пароли и коды доступа помощник не сообщает. Обратитесь к ответственному сотруднику.')
     if not api_key:
         raise AssistantUnavailable('Ключ DeepSeek не настроен')
     # Keep both token use and knowledge disclosure bounded.
+    # Reduce disclosure before the model call; keyword heuristics miss unlabelled
+    # secrets and may exclude harmless questions. This is not DLP or a guarantee.
+    sensitive_question = re.compile(r'парол|password|passwd|passphrase|секрет|secret|'
+                                    r'ключ\w*\s+(?:доступа|wi.?fi|вай.?фай|api)|'
+                                    r'api[_ -]?key|токен|token|код\w*\s+доступа', re.I)
+    sensitive_answer = re.compile(r'(?:парол\w*|password|passwd|passphrase|секрет\w*|secret|'
+                                  r'ключ\w*\s+(?:доступа|wi.?fi|вай.?фай|api)|'
+                                  r'api[_ -]?key|токен\w*|token|код\w*\s+доступа)'
+                                  r'(?:\s+(?:wi.?fi|вай.?фай))?\s*[:=]\s*\S+', re.I)
     verified = []
     for item in knowledge:
         record = dict(item)
-        if record.get('is_verified') == 1 and isinstance(record.get('question'), str) and isinstance(record.get('answer'), str):
+        if (record.get('is_verified') == 1 and isinstance(record.get('question'), str)
+                and isinstance(record.get('answer'), str)
+                and not sensitive_question.search(record['question'])
+                and not sensitive_answer.search(record['answer'])):
             verified.append(record)
         if len(verified) == 30:
             break
@@ -131,4 +144,10 @@ def assist(text, knowledge, categories, api_key, model='deepseek-flash', classif
     item = next((row for row in verified if row['id'] == knowledge_id), None)
     if item is None:
         return _safe_response('question', answer=UNKNOWN_TEXT)
-    return _safe_response('question', answer=item['answer'], source=item.get('source') or item['question'])
+    source = item.get('source') or item['question']
+    # Heuristic only: verified records can still contain credentials.  Do not
+    # return either field if it looks sensitive; this is not exhaustive DLP.
+    if (not isinstance(source, str) or sensitive_answer.search(item['answer'])
+            or sensitive_question.search(source)):
+        return _safe_response('question', answer='Пароли и коды доступа помощник не сообщает. Обратитесь к ответственному сотруднику.')
+    return _safe_response('question', answer=item['answer'], source=source)

@@ -1,3 +1,7 @@
+import sqlite3
+from contextlib import closing
+from unittest.mock import patch
+import main
 import tempfile
 import unittest
 from pathlib import Path
@@ -42,6 +46,61 @@ class StaffTests(unittest.TestCase):
         self.assertIn('Всего: <strong>3</strong>', page)
         self.assertIn('Открыто: <strong>1</strong>', page)
         self.assertIn('Решено: <strong>1</strong>', page)
+
+    def test_ticket_table_scroll_region_has_keyboard_access_and_instructions(self):
+        self.login()
+        page = self.client.get('/admin').get_data(as_text=True)
+        self.assertIn('role="region" aria-label="Таблица заявок" tabindex="0" aria-describedby="table-scroll-help"', page)
+        self.assertIn('id="table-scroll-help"', page)
+        self.assertIn('стрелками', page)
+
+    def test_empty_statistics_show_empty_distributions(self):
+        self.login()
+        page = self.client.get('/admin').get_data(as_text=True)
+        self.assertIn('По категориям', page)
+        self.assertIn('По помещениям', page)
+        self.assertEqual(page.count('Пока нет заявок.'), 2)
+        self.assertIn('Всего: <strong>0</strong>', page)
+
+    def test_distributions_count_all_categories_and_distinct_rooms_despite_filters(self):
+        with app.app_context():
+            db().executemany('INSERT INTO rooms VALUES (?,?,?)', [(1, 'Корпус А', '101'), (2, 'Корпус Б', '101')])
+            db().executemany('INSERT INTO tickets (description,category,room_id,status) VALUES (?,?,?,?)', [
+                ('Первая', 'Электрика', 1, 'Новая'), ('Вторая', 'Электрика', 2, 'Решена'),
+                ('Третья', 'Старая категория', 2, 'Отклонена')])
+            db().commit()
+        self.login()
+        for query in ({}, {'status': 'Новая', 'room_id': '1', 'date_from': '2099-01-01'}):
+            page = self.client.get('/admin', query_string=query).get_data(as_text=True)
+            statistics = page.split('<section class="statistics"', 1)[1].split('</section>', 1)[0]
+            for expected in ('Всего: <strong>3</strong>', 'Электрика: <strong>2</strong>',
+                             'Старая категория: <strong>1</strong>', 'Корпус А, 101: <strong>1</strong>',
+                             'Корпус Б, 101: <strong>2</strong>', 'независимо от фильтров'):
+                self.assertIn(expected, statistics)
+            self.assertNotIn('Пока нет заявок.', statistics)
+
+    def test_distributions_only_available_to_active_staff(self):
+        with app.app_context():
+            db().execute("INSERT INTO rooms VALUES (1,'Секретный корпус','999')")
+            db().execute("INSERT INTO tickets (description,category,room_id) VALUES ('Личная заявка','Особая категория',1)")
+            db().execute("INSERT INTO employees (login,password_hash,name,role) VALUES (?,?,?,'employee')", ('worker', generate_password_hash('password'), 'Исполнитель'))
+            db().commit()
+        for client in (self.client, app.test_client()):
+            if client is not self.client:
+                register_applicant(client)
+            response = client.get('/admin', follow_redirects=True)
+            self.assertNotIn('Особая категория', response.get_data(as_text=True))
+            self.assertNotIn('Секретный корпус', response.get_data(as_text=True))
+        worker = app.test_client()
+        worker.get('/login')
+        with worker.session_transaction() as session:
+            token = session['csrf_token']
+        worker.post('/login', data={'login': 'worker', 'password': 'password', 'csrf_token': token})
+        self.assertIn('Особая категория: <strong>1</strong>', worker.get('/admin').get_data(as_text=True))
+        with app.app_context():
+            db().execute("UPDATE employees SET is_active=0 WHERE login='worker'")
+            db().commit()
+        self.assertEqual(worker.get('/admin').status_code, 302)
 
     def test_excess_login_attempts_are_limited(self):
         self.client.get('/login')
@@ -265,3 +324,50 @@ class StaffTests(unittest.TestCase):
     def test_panel_requires_login(self):
         self.assertEqual(self.client.get('/admin').status_code, 302)
         self.assertIn('/login', self.client.get('/admin').location)
+
+    def test_statistics_share_snapshot_during_concurrent_commit(self):
+        with app.app_context():
+            db().execute("PRAGMA journal_mode=WAL")
+            db().execute("INSERT INTO rooms VALUES (1,'А','101')")
+            db().execute("INSERT INTO tickets(description,category,room_id) VALUES ('До','Другое',1)")
+            db().commit()
+        self.login()
+        original = main.db
+        written = []
+        class Connection:
+            def execute(proxy, sql, *args):
+                cursor = original().execute(sql, *args)
+                if 'AS resolved FROM tickets' in sql and not written:
+                    # Finish the aggregate read, then commit on another connection.
+                    row = cursor.fetchone()
+                    with closing(sqlite3.connect(app.config['DATABASE'])) as writer:
+                        writer.execute("INSERT INTO tickets(description,category,room_id) VALUES ('После','Другое',1)")
+                        writer.commit()
+                    written.append(True)
+                    class Result:
+                        def fetchone(self): return row
+                    return Result()
+                return cursor
+        with patch('main.db', return_value=Connection()), patch('main.render_template') as render:
+            render.return_value = ''
+            self.client.get('/admin')
+            data = render.call_args.kwargs
+        self.assertTrue(written)
+        self.assertEqual(data['statistics']['total'], 1)
+        self.assertEqual(sum(r['count'] for r in data['category_statistics']), 1)
+        self.assertEqual(sum(r['count'] for r in data['room_statistics']), 1)
+        with closing(sqlite3.connect(app.config['DATABASE'])) as connection:
+            self.assertEqual(connection.execute('SELECT COUNT(*) FROM tickets').fetchone()[0], 2)
+
+    def test_legacy_category_filter_is_exact_and_parameterized(self):
+        with app.app_context():
+            db().execute("INSERT INTO rooms VALUES (1,'А','101')")
+            db().executemany("INSERT INTO tickets(description,category,room_id) VALUES (?,?,1)",
+                             [('legacy match', ' Другое '), ('trimmed other', 'Другое'),
+                              ('sql match', "' OR 1=1 --")])
+            db().commit()
+        self.login()
+        for category, expected in [(' Другое ', 'legacy match'), ("' OR 1=1 --", 'sql match')]:
+            with patch('main.render_template', return_value='') as render:
+                self.client.get('/admin', query_string={'category': category, 'building': ' А ', 'room_id': '1', 'status': 'Новая'})
+                self.assertEqual([r['description'] for r in render.call_args.kwargs['items']], [expected])

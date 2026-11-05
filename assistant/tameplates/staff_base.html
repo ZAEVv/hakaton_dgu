@@ -1,7 +1,31 @@
 <!doctype html>
-<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{% block title %}Панель сотрудника{% endblock %}</title><link rel="stylesheet" href="{{ url_for('static', filename='staff.css') }}">{% include 'theme_head.html' %}</head>
-<body class="staff-site {% block body_class %}{% endblock %}"><a class="skip-link" href="#main-content">Перейти к содержимому</a><header class="site-header"><a class="brand" href="{{ url_for('admin') }}"><span class="service-mark" aria-hidden="true">СК</span><span>Служба колледжа<small>Панель сотрудника</small></span></a>{% include 'theme_switch.html' %}<nav aria-label="Панель сотрудника">
-{% if current_employee %}<span>{{ current_employee.name }} · {{ 'Администратор' if current_employee.role == 'admin' else 'Исполнитель' }}</span>
-{% if current_employee.role == 'admin' %}<a href="{{ url_for('manage_employees') }}">Сотрудники</a> <a href="{{ url_for('admin_qr') }}">Помещения и QR</a>{% endif %}
-<form method="post" action="{{ url_for('logout') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button>Выйти</button></form>{% endif %}
-</nav></header><main id="main-content" tabindex="-1">{% block content %}{% endblock %}</main><footer><span>Служба заявок колледжа</span><a href="{{ url_for('applicant_login') }}">Личный кабинет заявителя</a></footer></body></html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Панель сотрудника{% endblock %}</title>
+  {% include 'theme_head.html' %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='distinctive-workspace.css') }}">
+</head>
+<body class="staff-site {% block body_class %}{% endblock %}">
+  <a class="skip-link" href="#main-content">Перейти к содержимому</a>
+  <div class="dw-shell"><header class="site-header">
+    <a class="brand" href="{{ url_for('admin') }}"><span class="service-mark" aria-hidden="true">СК</span><span>Служба колледжа<small>Панель сотрудника</small></span></a>
+    {% include 'theme_switch.html' %}
+    {% if current_employee %}
+    <nav class="account-nav" aria-label="Панель сотрудника">
+      <span>{{ current_employee.name }} · {{ 'Администратор' if current_employee.role == 'admin' else 'Исполнитель' }}</span>
+      <a href="{{ url_for('admin') }}" {% if request.endpoint in ('admin', 'admin_ticket', 'admin_applicant') %}aria-current="page"{% endif %}>Заявки</a>
+      {% if current_employee.role == 'admin' %}
+      <a href="{{ url_for('manage_categories') }}" {% if request.endpoint == 'manage_categories' %}aria-current="page"{% endif %}>Категории</a>
+      <a href="{{ url_for('manage_employees') }}" {% if request.endpoint == 'manage_employees' %}aria-current="page"{% endif %}>Сотрудники</a>
+      <a href="{{ url_for('admin_qr') }}" {% if request.endpoint == 'admin_qr' %}aria-current="page"{% endif %}>Помещения и QR</a>
+      {% endif %}
+      <form method="post" action="{{ url_for('logout') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button type="submit">Выйти</button></form>
+    </nav>
+    {% endif %}
+  </header>
+  <main id="main-content" tabindex="-1"><div class="site-content">{% block content %}{% endblock %}</div></main>
+  </div><footer class="site-footer"><span>Служба заявок колледжа</span><a href="{{ url_for('applicant_login') }}">Личный кабинет заявителя</a></footer>
+</body>
+</html>

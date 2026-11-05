@@ -1,26 +1,34 @@
 {% extends 'staff_base.html' %}
 {% block title %}Заявки{% endblock %}
 {% block content %}
-<h1>Панель сотрудника</h1>
-<section class="statistics" aria-label="Статистика заявок">
-<h2>Статистика</h2>
-<p class="statistics-values"><span>Всего: <strong>{{ statistics.total }}</strong></span><span>Открыто: <strong>{{ statistics.open }}</strong></span><span>Решено: <strong>{{ statistics.resolved }}</strong></span></p>
-<p>Открытыми считаются все заявки, кроме решённых и отклонённых. Показатели учитывают все заявки, независимо от фильтров.</p>
+<div class="layout-admin">
+<header class="staff-heading"><h1>Панель сотрудника</h1><p>Обзор обращений и очередь для обработки</p></header>
+<section class="staff-queue" aria-labelledby="queue-heading">
+  <header class="page-heading"><h2 id="queue-heading">Очередь заявок</h2><p><a href="{{ url_for('admin', assignee=current_employee.id) }}">Мои заявки</a> · <a href="{{ url_for('admin') }}">Все заявки</a></p></header>
+  <details class="queue-filters" open><summary>Поиск и фильтры</summary><form method="get" class="filters">
+    <label class="field">Поиск по номеру, тексту, заявителю<input name="q" value="{{ request.args.get('q', '') }}"></label>
+    <label class="field">Статус<select name="status"><option value="">Все</option>{% for x in statuses %}<option {% if request.args.get('status') == x %}selected{% endif %}>{{ x }}</option>{% endfor %}</select></label>
+    <label class="field">Категория<select name="category"><option value="">Все</option>{% for x in categories %}<option {% if request.args.get('category') == x %}selected{% endif %}>{{ x }}</option>{% endfor %}</select></label>
+    <label class="field">Корпус<select name="building"><option value="">Все</option>{% for x in buildings %}<option {% if request.args.get('building') == x.building %}selected{% endif %}>{{ x.building }}</option>{% endfor %}</select></label>
+    <label class="field">Исполнитель<select name="assignee"><option value="">Все</option>{% for x in employees %}<option value="{{ x.id }}" {% if request.args.get('assignee') == x.id|string %}selected{% endif %}>{{ x.name }}</option>{% endfor %}</select></label>
+    <label class="field">Помещение<select name="room_id"><option value="">Все</option>{% for r in rooms %}<option value="{{ r.id }}" {% if request.args.get('room_id') == r.id|string %}selected{% endif %}>{{ r.building }}, {{ r.name }}</option>{% endfor %}</select></label>
+    <label class="field">Дата с (UTC)<input type="date" name="date_from" value="{{ request.args.get('date_from', '') }}"></label>
+    <label class="field">Дата по (UTC)<input type="date" name="date_to" value="{{ request.args.get('date_to', '') }}"></label>
+    <button>Найти</button><a href="{{ url_for('admin') }}">Сбросить фильтры</a>
+  </form></details>
+  <p id="table-scroll-help">Таблицу можно прокрутить по горизонтали: установите на неё фокус и пользуйтесь стрелками влево и вправо.</p>
+  <div class="table-wrap" role="region" aria-label="Таблица заявок" tabindex="0" aria-describedby="table-scroll-help"><table>
+    <thead><tr><th scope="col">№</th><th scope="col">Создана (UTC)</th><th scope="col">Заявитель</th><th scope="col">Описание</th><th scope="col">Помещение</th><th scope="col">Категория</th><th scope="col">Статус</th><th scope="col">Исполнитель</th></tr></thead>
+    <tbody>{% for x in items %}<tr><td><a href="{{ url_for('admin_ticket', ticket_id=x.id) }}">{{ x.id }}</a></td><td>{{ x.created_at }}</td><td>{% if x.applicant_id %}<a href="{{ url_for('admin_applicant', applicant_id=x.applicant_id) }}">{{ x.last_name }} {{ x.first_name }}</a><br>{{ x.record_book }}{% else %}Без аккаунта (старая){% endif %}</td><td><a href="{{ url_for('admin_ticket', ticket_id=x.id) }}">{{ x.description|truncate(120) }}</a></td><td>{{ x.building }}, {{ x.room }}</td><td>{{ x.category }}</td><td><span class="status">{{ 'Решена' if x.status == 'Закрыта' else x.status }}</span></td><td>{{ x.assignee or 'Не назначен' }}</td></tr>{% else %}<tr><td colspan="8">Заявок не найдено. Попробуйте изменить фильтры.</td></tr>{% endfor %}</tbody>
+  </table></div>
 </section>
-<p><a href="{{ url_for('admin', assignee=current_employee.id) }}">Мои заявки</a> · <a href="{{ url_for('admin') }}">Все заявки</a></p>
-<form method="get" class="filters">
-<label>Поиск по номеру, тексту, заявителю <input name="q" value="{{ request.args.get('q', '') }}"></label>
-<label>Статус <select name="status"><option value="">Все</option>{% for x in statuses %}<option {% if request.args.get('status') == x %}selected{% endif %}>{{ x }}</option>{% endfor %}</select></label>
-<label>Категория <select name="category"><option value="">Все</option>{% for x in categories %}<option {% if request.args.get('category') == x %}selected{% endif %}>{{ x }}</option>{% endfor %}</select></label>
-<label>Корпус <select name="building"><option value="">Все</option>{% for x in buildings %}<option {% if request.args.get('building') == x.building %}selected{% endif %}>{{ x.building }}</option>{% endfor %}</select></label>
-<label>Исполнитель <select name="assignee"><option value="">Все</option>{% for x in employees %}<option value="{{ x.id }}" {% if request.args.get('assignee') == x.id|string %}selected{% endif %}>{{ x.name }}</option>{% endfor %}</select></label>
-<label>Помещение <select name="room_id"><option value="">Все</option>{% for r in rooms %}<option value="{{ r.id }}" {% if request.args.get('room_id') == r.id|string %}selected{% endif %}>{{ r.building }}, {{ r.name }}</option>{% endfor %}</select></label>
-<label>Дата с (UTC) <input type="date" name="date_from" value="{{ request.args.get('date_from', '') }}"></label>
-<label>Дата по (UTC) <input type="date" name="date_to" value="{{ request.args.get('date_to', '') }}"></label>
-<button>Найти</button><a href="{{ url_for('admin') }}">Сбросить фильтры</a>
-</form>
-<div class="table-wrap"><table><thead><tr><th>№</th><th>Создана (UTC)</th><th>Заявитель</th><th>Описание</th><th>Помещение</th><th>Категория</th><th>Статус</th><th>Исполнитель</th></tr></thead><tbody>
-{% for x in items %}<tr><td><a href="{{ url_for('admin_ticket', ticket_id=x.id) }}">{{ x.id }}</a></td><td>{{ x.created_at }}</td><td>{% if x.applicant_id %}<a href="{{ url_for('admin_applicant', applicant_id=x.applicant_id) }}">{{ x.last_name }} {{ x.first_name }}</a><br>{{ x.record_book }}{% else %}Без аккаунта (старая){% endif %}</td><td><a href="{{ url_for('admin_ticket', ticket_id=x.id) }}">{{ x.description|truncate(120) }}</a></td><td>{{ x.building }}, {{ x.room }}</td><td>{{ x.category }}</td><td>{{ 'Решена' if x.status == 'Закрыта' else x.status }}</td><td>{{ x.assignee or 'Не назначен' }}</td></tr>
-{% else %}<tr><td colspan="8">Заявок не найдено. Попробуйте изменить фильтры.</td></tr>{% endfor %}
-</tbody></table></div>
+<section class="statistics" aria-label="Статистика заявок">
+  <h2>Статистика</h2>
+  <p class="statistics-values"><span>Всего: <strong>{{ statistics.total }}</strong></span><span>Открыто: <strong>{{ statistics.open }}</strong></span><span>Решено: <strong>{{ statistics.resolved }}</strong></span></p>
+  <p>Открытыми считаются все заявки, кроме решённых и отклонённых. Показатели учитывают все заявки, независимо от фильтров.</p>
+  <div class="statistics-distributions"><div><h3>По категориям</h3><ul>{% for row in category_statistics %}<li>{{ row.category }}: <strong>{{ row.count }}</strong></li>{% else %}<li>Пока нет заявок.</li>{% endfor %}</ul></div>
+  <div><h3>По помещениям</h3><ul>{% for row in room_statistics %}<li>{{ row.building }}, {{ row.room }}: <strong>{{ row.count }}</strong></li>{% else %}<li>Пока нет заявок.</li>{% endfor %}</ul></div></div>
+</section>
+
+</div>
 {% endblock %}

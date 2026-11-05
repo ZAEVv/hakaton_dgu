@@ -39,6 +39,8 @@ app.config.update(
 )
 CATEGORIES = ('Электрика', 'Сантехника', 'Мебель', 'Оборудование', 'Другое')
 STATUSES = ('Новая', 'На рассмотрении', 'Назначен исполнитель', 'В работе', 'Нужны уточнения', 'Решена', 'Отклонена')
+# Match the default password hashing work for nonexistent or inactive accounts.
+DUMMY_PASSWORD_HASH = generate_password_hash(secrets.token_urlsafe(32))
 
 
 def db():
@@ -62,6 +64,17 @@ def init_db():
         Path(app.config['DATABASE']).parent.mkdir(parents=True, exist_ok=True)
         db().executescript((BASE / 'schema.sql').read_text(encoding='utf-8'))
         db().execute('BEGIN IMMEDIATE')
+        has_categories = db().execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='categories'").fetchone()
+        if not has_categories:
+            db().execute('CREATE TABLE categories (id INTEGER PRIMARY KEY, name TEXT NOT NULL, is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0,1)))')
+            db().executemany('INSERT INTO categories (name) VALUES (?)', [(name,) for name in CATEGORIES])
+            # Preserve arbitrary historical labels as selectable filters, not new choices.
+            known = {name.casefold() for name in CATEGORIES}
+            for row in db().execute('SELECT DISTINCT category FROM tickets').fetchall():
+                name = row['category']
+                if name and name.casefold() not in known:
+                    db().execute('INSERT INTO categories (name,is_active) VALUES (?,0)', (name,))
+                    known.add(name.casefold())
         columns = {row['name'] for row in db().execute('PRAGMA table_info(knowledge_base)')}
         if 'is_verified' not in columns:
             db().execute('ALTER TABLE knowledge_base ADD COLUMN is_verified INTEGER NOT NULL DEFAULT 0 CHECK (is_verified IN (0, 1))')
@@ -109,6 +122,8 @@ def applicant_required(view):
         if not app.secret_key:
             abort(503, 'SECRET_KEY не настроен')
         if request.method == 'POST':
+            # Read bounded client input before locking; authorize under the lock.
+            request.get_data(cache=True)
             db().execute('BEGIN IMMEDIATE')
         auth_token = session.get('applicant_auth_token', '')
         token_hash = hashlib.sha256(auth_token.encode()).hexdigest()
@@ -134,6 +149,7 @@ def index():
         check_csrf()
     token = csrf_token()
     rooms = db().execute('SELECT id, building, name FROM rooms ORDER BY building, name').fetchall()
+    categories = active_categories()
     error = None
     status_code = 200
     values = request.form if request.method == 'POST' else {}
@@ -164,7 +180,7 @@ def index():
             if previous['applicant_id'] != g.applicant['id']:
                 abort(409, 'Обновите форму и повторите отправку.')
             return redirect(url_for('account_ticket', ticket_id=previous['id']))
-        if not valid_key or not description or len(description) > 5000 or category not in CATEGORIES or not any(str(r['id']) == room_id and r['building'] == building for r in rooms):
+        if not valid_key or not description or len(description) > 5000 or category not in categories or not any(str(r['id']) == room_id and r['building'] == building for r in rooms):
             error = 'Проверьте обязательные поля. Описание должно содержать не более 5000 символов.'
             status_code = 400
             if not valid_key:
@@ -238,7 +254,7 @@ def index():
                     error = 'Не удалось сохранить заявку. Попробуйте ещё раз.'
                     status_code = 503
     buildings = sorted({room['building'] for room in rooms})
-    return render_template('index.html', rooms=rooms, buildings=buildings, categories=CATEGORIES, values=values, request_key=request_key if request_key else str(uuid.uuid4()), error=error, csrf_token=token, qr_notice=qr_notice), status_code
+    return render_template('index.html', rooms=rooms, buildings=buildings, categories=categories, values=values, request_key=request_key if request_key else str(uuid.uuid4()), error=error, csrf_token=token, qr_notice=qr_notice), status_code
 
 
 @app.post('/api/assistant')
@@ -268,9 +284,10 @@ def assistant_api():
     records = [dict(row) for row in db().execute('SELECT id, question, answer, is_verified FROM knowledge_base WHERE is_verified=1 ORDER BY id LIMIT 30')]
     if os.environ.get('DEEPSEEK_DEMO_KNOWLEDGE') == '1':
         records = DEMO_KNOWLEDGE + records
+    categories = active_categories()
     db().commit()
     try:
-        result = assist(message, records, CATEGORIES, os.environ.get('DEEPSEEK_API_KEY', ''), os.environ.get('DEEPSEEK_MODEL', 'deepseek-flash'), summarize_danger=summarize_danger)
+        result = assist(message, records, categories, os.environ.get('DEEPSEEK_API_KEY', ''), os.environ.get('DEEPSEEK_MODEL', 'deepseek-flash'), summarize_danger=summarize_danger)
         return jsonify(result)
     except ValueError:
         return jsonify(error='Введите сообщение длиной от 1 до 2000 символов.'), 400
@@ -418,7 +435,8 @@ def applicant_login():
         applicant = db().execute('SELECT * FROM applicants WHERE record_book=?',
                                  (record_book_number(request.form.get('record_book', '')),)).fetchone()
         password = request.form.get('password', '')
-        if applicant and len(password) <= 256 and check_password_hash(applicant['password_hash'], password):
+        password_ok = check_password_hash(applicant['password_hash'] if applicant else DUMMY_PASSWORD_HASH, password[:256])
+        if applicant and len(password) <= 256 and password_ok:
             start_applicant_session(applicant['id'])
             return redirect(url_for('index' if 'pending_qr_room' in session else 'account'))
         error = 'Неверный логин или пароль.'
@@ -468,6 +486,8 @@ def staff_required(view):
         if not app.secret_key:
             abort(503, 'SECRET_KEY не настроен')
         if request.method == 'POST':
+            # Read bounded client input before locking; authorize under the lock.
+            request.get_data(cache=True)
             db().execute('BEGIN IMMEDIATE')
         employee_id = session.get('employee_id')
         auth_token = session.get('auth_token', '')
@@ -517,9 +537,13 @@ def create_admin(login, name, password):
 @app.get('/admin')
 @staff_required
 def admin():
+    # Pin all dashboard reads to one SQLite snapshot.
+    db().execute('BEGIN')
     clauses, params = [], []
     for field, column in (('status', 't.status'), ('category', 't.category'), ('building', 'r.building'), ('assignee', 't.assignee_id'), ('room_id', 't.room_id')):
-        value = request.args.get(field, '').strip()
+        value = request.args.get(field, '')
+        if field != 'category':
+            value = value.strip()
         if value:
             if field == 'status' and value == 'Решена':
                 clauses.append("t.status IN ('Решена', 'Закрыта')")
@@ -549,9 +573,68 @@ def admin():
     statistics = db().execute('''SELECT COUNT(*) AS total,
           COALESCE(SUM(CASE WHEN status NOT IN ('Решена', 'Отклонена', 'Закрыта') THEN 1 ELSE 0 END), 0) AS open,
           COALESCE(SUM(CASE WHEN status IN ('Решена', 'Закрыта') THEN 1 ELSE 0 END), 0) AS resolved FROM tickets''').fetchone()
+    category_statistics = db().execute('''SELECT category, COUNT(*) AS count FROM tickets
+                                            GROUP BY category ORDER BY count DESC, category''').fetchall()
+    room_statistics = db().execute('''SELECT r.building, r.name AS room, COUNT(*) AS count
+                                        FROM tickets t JOIN rooms r ON r.id=t.room_id
+                                        GROUP BY r.id ORDER BY count DESC, r.building, r.name, r.id''').fetchall()
     return render_template('admin.html', items=items, employees=employees, buildings=buildings, rooms=rooms,
-                           statuses=STATUSES, categories=CATEGORIES, statistics=statistics, csrf_token=csrf_token())
+                           statuses=STATUSES, categories=filter_categories(), statistics=statistics,
+                           category_statistics=category_statistics, room_statistics=room_statistics, csrf_token=csrf_token())
 
+
+
+def active_categories():
+    return [row['name'] for row in db().execute('SELECT name FROM categories WHERE is_active=1 ORDER BY id')]
+
+
+def filter_categories():
+    # Ticket labels are immutable snapshots, including names before a rename.
+    return [row['name'] for row in db().execute('SELECT name FROM categories UNION SELECT category AS name FROM tickets ORDER BY name')]
+
+
+@app.route('/admin/categories', methods=['GET', 'POST'])
+@staff_required
+def manage_categories():
+    require_admin()
+    error = None
+    if request.method == 'POST':
+        check_csrf()
+        action = request.form.get('action', '')
+        if action in ('create', 'rename'):
+            name = request.form.get('name', '').strip()
+            category_id = request.form.get('category_id', '') if action == 'rename' else ''
+            if not name or len(name) > 120 or any(ord(ch) < 32 or ord(ch) == 127 for ch in name):
+                error = 'Название должно содержать от 1 до 120 символов без управляющих символов.'
+            elif (db().execute('SELECT 1 FROM categories WHERE casefold(name)=? AND id != ?', (name.casefold(), category_id or -1)).fetchone()
+                  or (not db().execute('SELECT 1 FROM categories WHERE id=? AND casefold(name)=?', (category_id, name.casefold())).fetchone()
+                      and db().execute('SELECT 1 FROM tickets WHERE casefold(category)=? LIMIT 1', (name.casefold(),)).fetchone())):
+                error = 'Это название уже используется категорией или в истории заявок.'
+            elif action == 'create':
+                db().execute('INSERT INTO categories (name) VALUES (?)', (name,))
+            else:
+                if not db().execute('UPDATE categories SET name=? WHERE id=?', (name, category_id)).rowcount:
+                    abort(404)
+        elif action in ('disable', 'enable'):
+            category_id = request.form.get('category_id', '')
+            category = db().execute('SELECT is_active FROM categories WHERE id=?', (category_id,)).fetchone()
+            if category is None:
+                abort(404)
+            # staff_required holds BEGIN IMMEDIATE through validation and commit.
+            if action == 'disable' and category['is_active'] and db().execute(
+                    'SELECT COUNT(*) FROM categories WHERE is_active=1').fetchone()[0] <= 1:
+                error = 'Нельзя отключить последнюю активную категорию. Сначала включите или добавьте другую.'
+            else:
+                db().execute('UPDATE categories SET is_active=? WHERE id=?', (int(action == 'enable'), category_id))
+        else:
+            abort(400)
+        if not error:
+            db().commit()
+            return redirect(url_for('manage_categories'))
+    if error:
+        db().rollback()
+    categories = db().execute('SELECT * FROM categories ORDER BY id').fetchall()
+    return render_template('categories.html', categories=categories, error=error, csrf_token=csrf_token()), 400 if error else 200
 
 
 @app.route('/admin/qr', methods=['GET', 'POST'])
@@ -767,7 +850,9 @@ def login():
         if not login_attempt_allowed('staff'):
             return render_template('login.html', csrf_token=token, error='Слишком много попыток входа. Попробуйте через 10 минут.'), 429
         employee = db().execute('SELECT * FROM employees WHERE login = ?', (request.form.get('login', ''),)).fetchone()
-        if employee and employee['is_active'] and check_password_hash(employee['password_hash'], request.form.get('password', '')):
+        password = request.form.get('password', '')
+        password_ok = check_password_hash(employee['password_hash'] if employee and employee['is_active'] else DUMMY_PASSWORD_HASH, password)
+        if employee and employee['is_active'] and password_ok:
             db().execute('BEGIN IMMEDIATE')
             current = db().execute('SELECT password_hash, is_active FROM employees WHERE id=?', (employee['id'],)).fetchone()
             if not current or not current['is_active'] or current['password_hash'] != employee['password_hash']:

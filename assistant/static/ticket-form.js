@@ -1,39 +1,42 @@
-const form = document.getElementById('ticket-form');
-if (form) {
-  const building = form.elements.building;
-  const room = form.elements.room_id;
-  const button = document.getElementById('submit-ticket');
-  const options = Array.from(room.options).slice(1);
-  const hasRooms = options.length > 0;
-  let submitting = false;
+(() => {
+  'use strict';
 
-  function updateRooms() {
-    const selected = room.value;
-    room.replaceChildren(new Option('Выберите помещение', ''));
-    options.filter(option => option.dataset.building === building.value)
-      .forEach(option => room.add(option));
-    room.value = Array.from(room.options).some(option => option.value === selected) ? selected : '';
-    room.disabled = !building.value;
+  const ticket = document.getElementById('ticket-form');
+  if (!ticket) return;
+
+  const campus = ticket.elements.building;
+  const rooms = ticket.elements.room_id;
+  const send = document.getElementById('submit-ticket');
+  const available = Array.from(rooms.options).slice(1);
+  let pending = false;
+
+  function showRooms() {
+    const previous = rooms.value;
+    const matching = available.filter(item => item.dataset.building === campus.value);
+    rooms.replaceChildren(new Option('Выберите помещение', ''));
+    for (const item of matching) rooms.add(item);
+    rooms.value = Array.from(rooms.options).some(item => item.value === previous) ? previous : '';
+    rooms.disabled = !campus.value;
   }
-  building.addEventListener('change', updateRooms);
-  updateRooms();
 
-  form.addEventListener('submit', event => {
-    if (submitting) {
+  campus.addEventListener('change', showRooms);
+  showRooms();
+  ticket.addEventListener('submit', event => {
+    if (pending) {
       event.preventDefault();
       return;
     }
-    submitting = true;
-    button.disabled = true;
-    button.textContent = 'Отправляем заявку…';
-    form.setAttribute('aria-busy', 'true');
+    pending = true;
+    send.disabled = true;
+    send.textContent = 'Отправляем заявку…';
+    ticket.setAttribute('aria-busy', 'true');
   });
   window.addEventListener('pageshow', () => {
-    submitting = false;
-    button.disabled = !hasRooms;
-    button.textContent = 'Отправить заявку';
-    form.removeAttribute('aria-busy');
-    updateRooms();
+    pending = false;
+    send.disabled = available.length === 0;
+    send.textContent = 'Отправить заявку';
+    ticket.removeAttribute('aria-busy');
+    showRooms();
   });
   document.getElementById('form-error')?.focus();
-}
+})();

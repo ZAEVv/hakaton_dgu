@@ -1,7 +1,11 @@
 {% extends 'applicant_base.html' %}
 {% block title %}Не удалось выполнить действие — Служба колледжа{% endblock %}
 {% block content %}
-<h1>Не удалось выполнить действие</h1>
-<p role="alert">{{ message }}</p>
-<p><a href="{{ url_for('account') }}">Личный кабинет</a> · <a href="{{ url_for('index') }}">Вернуться к форме</a></p>
+<div class="layout-error">
+  <section class="surface" aria-labelledby="error-heading">
+    <h1 id="error-heading">Не удалось выполнить действие</h1>
+    <p class="error" role="alert">{{ message }}</p>
+    <nav class="error-actions" aria-label="Дальнейшие действия"><a class="action-link" href="{{ url_for('index') }}">Вернуться к форме</a><a href="{{ url_for('account') }}">Личный кабинет</a></nav>
+  </section>
+</div>
 {% endblock %}

@@ -1,0 +1,40 @@
+/* Task-oriented workspace; all assets and fonts remain local. */
+:root { font-size: 16px; }
+.applicant-site:not(.auth-page) main, .staff-site main { background: transparent; border: 0; padding: 16px 0 40px; }
+.applicant-site:not(.auth-page) main { width: min(1280px, calc(100% - 64px)); }
+.staff-site main { width: min(1440px, calc(100% - 64px)); }
+.eyebrow { color: var(--blue); font-size: .76rem; font-weight: 700; text-transform: uppercase; letter-spacing: .11em; margin-bottom: 12px; }
+.page-heading, .staff-heading { padding: 20px 0 8px; }
+.page-heading h1, .staff-heading h1 { max-width: 19ch; font-family: inherit; font-weight: 700; letter-spacing: -.045em; }
+.request-workspace { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(300px, .8fr); gap: 24px; align-items: start; }
+#manual-form, .request-assistance .ai-assistant, .staff-queue, .staff-breakdown, .account-ticket { background: var(--paper); border: 1px solid var(--line); border-radius: 12px; padding: clamp(20px, 3vw, 36px); }
+#manual-form { margin: 0; }
+#manual-form summary { font-size: 1.2rem; min-height: 44px; }
+.request-assistance .ai-assistant { position: sticky; top: 20px; }
+.request-assistance .chat-messages { min-height: 170px; }
+.safety-note { max-width: none; }
+.statistics { margin: 0 0 24px; }
+.statistics-values { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; border: 0; padding: 0; }
+.statistics-values > span { background: var(--paper); border: 1px solid var(--line); border-top: 4px solid var(--blue); border-radius: 10px; padding: 18px 22px; }
+.statistics-values strong { font-family: inherit; font-weight: 700; font-size: 2rem; }
+.queue-heading, .account-heading { display: flex; justify-content: space-between; gap: 16px; align-items: center; flex-wrap: wrap; }
+.queue-heading h2, .staff-breakdown h2 { font-family: inherit; font-size: 1.25rem; font-weight: 700; }
+.staff-queue .filters { margin-bottom: 20px; }
+.staff-breakdown { margin-top: 24px; }
+.statistics-distributions > div { background: var(--surface); border-radius: 8px; padding: 16px 20px; }
+.account-ticket { margin: 16px 0; }
+.action-link { display: inline-flex; min-height: 44px; align-items: center; padding: 10px 18px; border-radius: 7px; background: var(--blue); color: var(--paper); font-weight: 700; text-decoration: none; }
+@media (max-width: 800px) {
+ .request-workspace { grid-template-columns: 1fr; }
+ .request-assistance .ai-assistant { position: static; }
+ .applicant-site:not(.auth-page) main, .staff-site main { width: calc(100% - 40px); }
+}
+@media (max-width: 600px) {
+ :root { font-size: 16px; }
+ .applicant-site:not(.auth-page) main, .staff-site main { width: calc(100% - 24px); }
+ .statistics-values { gap: 8px; }
+ .statistics-values > span { padding: 12px 10px; font-size: .75rem; }
+ .statistics-values strong { font-size: 1.5rem; }
+ .account-nav { flex-wrap: wrap; gap: 8px 16px; }
+ .account-nav > a { white-space: normal; }
+}

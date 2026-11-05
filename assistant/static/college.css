@@ -1,0 +1,41 @@
+/* College portal: spacious surfaces and a distinct institutional masthead. */
+:root { --canvas:#e2e8f0; --paper:#fff; --surface:#f1f5f9; --ink:#172446; --muted:#475569; --line:#b8c6d9; --blue:#1d4ed8; --accent:#2563eb; --hover:#1d4ed8; --tint:#e8efff; --button-ink:#fff; --field-border:#8293a9; }
+:root[data-theme="dark"] { --canvas:#0d172b; --paper:#192945; --surface:#223552; --ink:#f1f5ff; --muted:#c2cee1; --line:#506583; --blue:#a8c8ff; --accent:#2563eb; --hover:#1d4ed8; --tint:#263d61; --button-ink:#fff; --field-border:#94a8c3; }
+body { background:var(--canvas); color:var(--ink); }
+.site-header, .auth-page .site-header { max-width:none; margin:0; padding:20px max(24px, calc((100vw - 1320px)/2)); background:#172446; color:#fff; border:0; }
+.site-header .brand, .site-header a, .site-header nav { color:#fff; }
+.service-mark { background:#2563eb; color:#fff; border-radius:14px; width:48px; height:48px; font-size:1rem; }
+.site-header .brand small { color:#cbd5e1; }
+.account-bar { background:#fff; border-bottom:1px solid var(--line); }
+:root[data-theme="dark"] .account-bar { background:var(--paper); }
+button, .action-link { border-radius:999px; }
+button:not(.theme-switch button):not(.account-nav button):not(header nav button), .action-link { background:#2563eb; border-color:#2563eb; color:#fff; }
+button:not(.theme-switch button):not(.account-nav button):not(header nav button):hover:not(:disabled), .action-link:hover { background:#1d4ed8; border-color:#1d4ed8; color:#fff; }
+input:not([type="hidden"]), select, textarea { border-radius:12px; min-height:48px; }
+:focus-visible { outline:3px solid #f59e0b; outline-offset:3px; }
+.page-heading, .staff-heading { background:#172446; color:#fff; border-radius:24px; padding:clamp(28px,4vw,54px); margin-bottom:24px; }
+.page-heading h1, .staff-heading h1 { color:#fff; font-size:clamp(2.2rem,5vw,4rem); line-height:1.05; }
+.page-heading .eyebrow, .staff-heading .eyebrow { color:#a9c8ff; }
+.page-heading .intro, .staff-heading .intro { color:#d7e2f2; margin-bottom:0; }
+#manual-form, .request-assistance .ai-assistant, .staff-queue, .account-ticket, .statistics-values > span { border-radius:20px; }
+.statistics-values > span { border-top:4px solid #2563eb; }
+body.auth-page { --auth-canvas:#e2e8f0; --auth-card:#fff; --auth-ink:#172446; --auth-muted:#475569; --auth-line:#9aacc2; --auth-accent:#1d4ed8; --auth-accent-hover:#1e40af; --auth-on-accent:#fff; }
+:root[data-theme="dark"] body.auth-page { --auth-canvas:#0d172b; --auth-card:#192945; --auth-ink:#f1f5ff; --auth-muted:#c2cee1; --auth-line:#8299b8; --auth-accent:#a8c8ff; --auth-accent-hover:#d7e5ff; --auth-on-accent:#fff; }
+.auth-page main, .staff-site.auth-page main { width:min(1220px, calc(100% - 48px)); margin:clamp(28px,6vh,72px) auto; }
+.auth-page .auth-layout { display:grid; grid-template-columns:1fr 1fr; gap:24px; align-items:stretch; }
+.auth-page .campus-panel { position:relative; display:flex; flex-direction:column; align-items:flex-start; justify-content:center; overflow:hidden; min-height:580px; padding:clamp(32px,5vw,70px); border-radius:24px; background:#172446; color:#fff; font-size:1rem; text-transform:none; letter-spacing:normal; }
+.auth-page .campus-panel::after { content:""; position:absolute; width:340px; height:340px; right:-130px; bottom:-140px; border:55px solid #2563eb; border-radius:50%; opacity:.25; pointer-events:none; }
+.auth-page .campus-panel > * { position:relative; z-index:1; }
+.auth-page .campus-kicker { color:#a9c8ff; font-size:.8rem; letter-spacing:.12em; text-transform:uppercase; }
+.auth-page .campus-panel .campus-title { display:block; max-width:11ch; margin:28px 0; color:#fff; font-size:clamp(2.8rem,5vw,4.6rem); font-weight:800; line-height:1.04; letter-spacing:-.045em; }
+.auth-page .campus-panel .campus-description { display:block; max-width:38ch; margin:0; color:#d7e2f2; font-size:1.05rem; line-height:1.6; }
+.auth-page .campus-caption { display:block; margin-top:60px; color:#d7e2f2; text-align:left; font-size:.82rem; }
+.auth-page .auth-form { border:1px solid var(--line); border-radius:24px; padding:clamp(30px,5vw,64px); box-shadow:0 20px 60px rgb(23 36 70 / 9%); }
+.auth-page .auth-form h1 { color:var(--auth-ink); }
+.auth-page .auth-form input:not([type="hidden"]) { border-radius:12px; }
+.auth-page .auth-form form button { background:#2563eb; border-color:#2563eb; color:#fff; border-radius:999px; }
+.auth-page .auth-form form button:hover:not(:disabled) { background:#1d4ed8; border-color:#1d4ed8; color:#fff; }
+.auth-page .auth-form a { color:var(--auth-accent); }
+@media(max-width:800px) { .auth-page .auth-layout { grid-template-columns:1fr; } .auth-page .campus-panel { min-height:0; padding:32px; } .auth-page .campus-panel .campus-title { max-width:18ch; margin:14px 0; font-size:clamp(2rem,8vw,3rem); } .auth-page .campus-caption { margin-top:20px; } }
+@media(max-width:600px) { .site-header, .auth-page .site-header { padding:16px; } .auth-page main, .staff-site.auth-page main { width:calc(100% - 32px); margin:24px auto 32px; } .auth-page .auth-form { padding:28px 22px; } .page-heading, .staff-heading { border-radius:18px; padding:28px 24px; } }
+@media(prefers-reduced-motion:reduce) { *, *::before, *::after { scroll-behavior:auto !important; transition:none !important; animation:none !important; } }

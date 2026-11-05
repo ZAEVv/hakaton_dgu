@@ -1,156 +1,219 @@
 (() => {
-  const input = document.getElementById('ai-message');
-  const send = document.getElementById('ai-send');
-  const log = document.getElementById('chat-messages');
-  const locationBox = document.getElementById('chat-location');
-  const location = document.getElementById('chat-room');
-  const submit = document.getElementById('chat-send-ticket');
-  const form = document.getElementById('ticket-form');
-  if (!input || !send || !log || !form) return;
-  const csrf = form.elements.csrf_token.value;
-  const reset = document.getElementById('chat-new');
-  const owner = document.querySelector('.ai-assistant').dataset.chatOwner;
-  const storageKey = `college-chat-${owner}`;
-  let messages = [], draft = null, busy = false, pending = false, transcript = [], submittedUrl = null;
-  function save() {
-    try { sessionStorage.setItem(storageKey, JSON.stringify({messages, draft, transcript, submittedUrl, room:location.value, requestKey:form.elements.request_key.value})); } catch (_) { /* Continue without browser storage. */ }
-  }
-  function say(text, who = 'assistant') {
-    const p = document.createElement('p');
-    p.className = `chat-bubble ${who}-bubble`;
-    p.textContent = text;
-    log.appendChild(p);
-    transcript.push({text, who});
-    save();
-    p.scrollIntoView({block: 'nearest'});
-  }
-  async function createTicket() {
-    if (!draft || busy || pending) return;
-    if (!location.value) { say('Выберите место из списка, чтобы я смог отправить заявку.'); return; }
-    busy = true; pending = true; send.disabled = submit.disabled = true;
-    if (draft.type === 'danger' && !draft.summarized) {
-      try {
-        const response = await fetch('/api/assistant', {method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/json','X-CSRF-Token':csrf}, body:JSON.stringify({message:draft.draft,summarize_danger:true})});
-        if (response.ok) {
-          const result = await response.json();
-          if (typeof result.draft === 'string' && result.draft.trim()) draft.draft = result.draft;
-        }
-      } catch (_) { /* Retain the user's problem if summarization is unavailable. */ }
-      draft.summarized = true; save();
-    }
-    const selected = location.selectedOptions[0];
-    form.elements.building.value = selected.dataset.building;
-    form.elements.building.dispatchEvent(new Event('change'));
-    form.elements.room_id.value = location.value;
-    form.elements.category.value = draft.category || 'Другое';
-    form.elements.description.value = draft.draft;
-    const body = new FormData(form);
-    say('Отправляю заявку сотрудникам…');
+  'use strict';
+  const byId = id => document.getElementById(id);
+  const ui = {
+    composer: byId('ai-message'), send: byId('ai-send'), log: byId('chat-messages'),
+    panel: byId('chat-location'), room: byId('chat-room'), confirm: byId('chat-send-ticket'),
+    description: byId('chat-description'), category: byId('chat-category'),
+    form: byId('ticket-form'), reset: byId('chat-new')
+  };
+  if (Object.values(ui).some(element => !element)) return;
+  const owner = document.querySelector('.ai-assistant');
+  if (!owner || !owner.dataset.chatOwner || !ui.form.elements.csrf_token || !ui.form.elements.request_key) return;
+  const key = `college-chat-${owner.dataset.chatOwner}`;
+  const state = {messages: [], draft: null, transcript: [], submittedUrl: null, busy: false};
+  const options = select => Array.from(select.options || []);
+  const usable = (select, value) => !select.disabled && value && options(select).find(option =>
+    option.value === value && !option.disabled && !(option.parentElement && option.parentElement.disabled));
+  const roomOption = () => usable(ui.room, ui.room.value);
+  const validCategory = value => !!usable(ui.category, value);
+  const ticketUrl = value => {
     try {
-      const response = await fetch(form.action || '/', {method:'POST', body, credentials:'same-origin'});
-      if (!response.ok || !response.redirected || !new URL(response.url).pathname.startsWith('/account/tickets/')) throw new Error('Не удалось отправить заявку. Проверьте данные и попробуйте ещё раз.');
-      const link = document.createElement('a');
-      link.href = response.url; link.textContent = 'Открыть заявку и переписку';
-      const number = new URL(response.url).pathname.split('/').pop();
-      say(`Обращение № ${number} направлено администратору. Статус: новая. После принятия в работу вы увидите ответ и новый статус в профиле.`);
-      link.className = 'chat-link';
-      log.appendChild(link);
-      draft = null; messages = []; locationBox.hidden = true;
-      submittedUrl = response.url; reset.hidden = false; save();
-      // A new key is required for a different request; reload gives a new key.
-      send.disabled = true; input.disabled = true;
-      say('Чтобы создать ещё одну заявку, нажмите «Начать новое обращение».');
-    } catch (error) {
-      pending = false;
-      say(error.message || 'Ошибка отправки. Попробуйте ещё раз.');
-      send.disabled = false;
-    } finally { busy = false; submit.disabled = false; }
+      const url = new URL(value, window.location.origin);
+      return url.origin === window.location.origin && /^\/account\/tickets\/\d+\/?$/.test(url.pathname) ? url : null;
+    } catch (_) { return null; }
+  };
+  let storageWarning;
+  function warnStorage() {
+    if (storageWarning) return;
+    storageWarning = document.createElement('p');
+    if (storageWarning.setAttribute) storageWarning.setAttribute('role', 'alert');
+    storageWarning.textContent = 'Не удалось сохранить данные в этой вкладке. Черновик и неотправленный текст могут не восстановиться после обновления страницы. Скопируйте важный текст в безопасное место.';
+    ui.log.appendChild(storageWarning);
   }
-  send.addEventListener('click', async () => {
-    const text = input.value.trim();
-    if (!text || busy || pending) return;
-    // If the applicant asks us to notify staff after an emergency warning, keep the
-    // original problem instead of treating the instruction as a new incident.
-    const notifyIntent = /(?:сообщ|отправ|переда|администратор|сотрудник)/i.test(text);
-    if (!draft && notifyIntent) {
-      const previous = [...transcript].reverse().find(entry => entry.who === 'user' && /искр|дым|гар[ьи]|горит|пожар|провод|удар.*ток/i.test(entry.text));
-      if (previous) draft = {type:'danger', category:'Другое', draft:previous.text};
+  const emergency = text => /искр|дым|гар[ьи]|горит|пожар|провод|удар.*ток/i.test(text);
+  function savedTranscript() {
+    const history = state.transcript;
+    const transcript = history.slice(-1000);
+    const older = history.slice(0, -1000);
+    // Overflowed details are not in the draft; preserve older user messages separately.
+    const overflowContext = state.draft && state.draft.overflow ? older.filter(entry => entry.who === 'user') : [];
+    const critical = [...older].reverse().find(entry => entry.who === 'user' && emergency(entry.text));
+    if (critical && !overflowContext.includes(critical) && !transcript.some(entry => entry.who === 'user' && emergency(entry.text))) {
+      transcript.splice(0, 1, critical);
     }
-    if (draft && !locationBox.hidden) {
-      say(text, 'user'); input.value = '';
-      const cleaned = text.trim().toLocaleLowerCase('ru-RU');
-      const matches = Array.from(location.options).filter(option => option.value && (option.text.toLocaleLowerCase('ru-RU') === cleaned || option.text.toLocaleLowerCase('ru-RU').includes(cleaned)));
-      if (matches.length === 1) {
-        location.value = matches[0].value; save();
-        await createTicket();
-      } else {
-        say('Укажите место, выбрав его из списка. Затем нажмите «Отправить обращение администратору».');
-      }
-      return;
-    }
-    if (draft && notifyIntent) {
-      say(text, 'user'); input.value = ''; locationBox.hidden = false; save();
-      say('Конечно, передам обращение администратору. Сначала выберите место из списка.');
-      return;
-    }
-    draft = null; locationBox.hidden = true;
-    say(text, 'user'); input.value = ''; messages.push(text); save();
-    const combined = messages.join('\n').slice(-2000);
-    busy = true; send.disabled = true;
+    return {transcript, overflowContext};
+  }
+  let historyWarning;
+  function persist() {
     try {
-      const response = await fetch('/api/assistant', {method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/json','X-CSRF-Token':csrf}, body:JSON.stringify({message:combined})});
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Помощник временно недоступен.');
-      if (data.answer) say(data.answer);
-      if (data.question) say(data.question);
-      if (data.source) say(`Источник: ${data.source}`);
-      if (data.type === 'danger') {
-        draft = {type:'danger', category:'Другое', draft:combined};
-        const qrRoom = form.elements.room_id.value;
-        if (qrRoom && Array.from(location.options).some(o => o.value === qrRoom)) location.value = qrRoom;
-        locationBox.hidden = false;
-        if (!location.value) say('Чтобы я направил обращение администратору, выберите место из списка. Пока не подходите к оборудованию.');
-        save();
+      const history = savedTranscript();
+      if (!historyWarning && history.transcript.length + history.overflowContext.length < state.transcript.length) {
+        historyWarning = document.createElement('p');
+        historyWarning.textContent = 'Некоторые старые сообщения переписки не восстановятся после обновления страницы. Скопируйте важные сведения в безопасное место.';
+        ui.log.appendChild(historyWarning);
       }
-      if (data.type === 'question') messages = [];
-      if (data.type === 'fault' && data.draft) {
-        draft = data;
-        const qrRoom = form.elements.room_id.value;
-        if (qrRoom && Array.from(location.options).some(o => o.value === qrRoom)) location.value = qrRoom;
-        locationBox.hidden = false;
-        save();
-        if (!location.value) say('Где возникла проблема? Выберите корпус и помещение из списка.');
-      }
-    } catch (error) { say(error.message || 'Помощник недоступен. Можно заполнить заявку вручную ниже.'); }
-    finally { busy = false; send.disabled = false; save(); }
-    if (draft && location.value) await createTicket();
-  });
-  input.addEventListener('keydown', event => {
-    if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
-      event.preventDefault(); send.click();
+      sessionStorage.setItem(key, JSON.stringify({messages: state.messages, draft: state.draft,
+        transcript: history.transcript, overflowContext: history.overflowContext, submittedUrl: state.submittedUrl, room: ui.room.value,
+        requestKey: ui.form.elements.request_key.value, composer: ui.composer.value}));
+    } catch (_) { warnStorage(); }
+  }
+  function bubble(text, who = 'assistant', record = true) {
+    if (typeof text !== 'string' || !text) return;
+    const node = document.createElement('p');
+    node.className = `chat-bubble ${who}-bubble`;
+    node.textContent = text;
+    ui.log.appendChild(node);
+    if (record) { state.transcript.push({text, who}); persist(); }
+    if (node.scrollIntoView) node.scrollIntoView({block: 'nearest'});
+  }
+  function showLink(url) {
+    const link = document.createElement('a');
+    link.href = url.href; link.textContent = 'Открыть заявку и переписку'; link.className = 'chat-link';
+    ui.log.appendChild(link);
+  }
+  function showDraft() {
+    if (!state.draft) return;
+    ui.description.value = typeof state.draft.draft === 'string' ? state.draft.draft : '';
+    if (state.draft.type === 'danger' && !state.draft.categoryChosen) state.draft.category = '';
+    ui.category.value = validCategory(state.draft.category) ? state.draft.category : '';
+    ui.panel.hidden = false;
+  }
+  function captureDraft() {
+    if (!state.draft) return;
+    state.draft.draft = ui.description.value;
+    state.draft.category = ui.category.value;
+    persist();
+  }
+  function setBusy(value) {
+    state.busy = value;
+    ui.send.disabled = value || !!state.submittedUrl;
+    ui.confirm.disabled = value;
+  }
+  function restore() {
+    let saved;
+    let raw;
+    try { raw = sessionStorage.getItem(key); } catch (_) { warnStorage(); return; }
+    try { saved = JSON.parse(raw || 'null'); } catch (_) { return; }
+    if (!saved || !Array.isArray(saved.transcript) || typeof saved.requestKey !== 'string') return;
+    state.messages = Array.isArray(saved.messages) ? saved.messages.filter(x => typeof x === 'string') : [];
+    state.draft = saved.draft && typeof saved.draft === 'object' ? saved.draft : null;
+    const overflowContext = state.draft && state.draft.overflow && Array.isArray(saved.overflowContext) ? saved.overflowContext : [];
+    state.transcript = [...overflowContext, ...saved.transcript].filter(x => x && typeof x.text === 'string').map(x => ({text:x.text, who:x.who === 'user' ? 'user' : 'assistant'}));
+    ui.form.elements.request_key.value = saved.requestKey;
+    ui.composer.value = typeof saved.composer === 'string' ? saved.composer : '';
+    for (const item of state.transcript) bubble(item.text, item.who, false);
+    if (usable(ui.room, saved.room)) ui.room.value = saved.room;
+    const url = saved.submittedUrl && ticketUrl(saved.submittedUrl);
+    if (url) {
+      state.submittedUrl = url.href; showLink(url); ui.composer.disabled = ui.send.disabled = true; ui.reset.hidden = false;
+    } else if (state.draft) showDraft();
+  }
+  function selectQrRoom() {
+    const field = ui.form.elements.room_id;
+    if (field && usable(ui.room, field.value)) ui.room.value = field.value;
+  }
+  function displayReply(data) {
+    if (data.answer) bubble(data.answer);
+    if (data.question) bubble(data.question);
+    if (data.source) bubble(`Источник: ${data.source}`);
+  }
+  async function assess(text) {
+    const response = await fetch('/api/assistant', {method:'POST', credentials:'same-origin',
+      headers:{'Content-Type':'application/json', 'X-CSRF-Token':ui.form.elements.csrf_token.value},
+      body:JSON.stringify({message:text})});
+    const data = await response.json();
+    if (!response.ok || !data || !['danger','fault','question','unclear'].includes(data.type)) throw new Error('assistant unavailable');
+    return data;
+  }
+  function appendDetail(text, matches) {
+    const command = /^(?:пожалуйста[,\s]+)?(?:сообщите|сообщи|передайте|передай|отправьте|отправь)\s+(?:(?:об этом|это)\s+)?(?:администратору|сотрудникам|сотруднику)[.!\s]*$/i.test(text);
+    if (matches.length || command || ui.description.value.split('\n').includes(text)) return;
+    const combined = ui.description.value ? `${ui.description.value}\n${text}` : text;
+    const limit = ui.description.maxLength > 0 ? ui.description.maxLength : 5000;
+    if (combined.length <= limit) { ui.description.value = combined; captureDraft(); }
+    else {
+      state.draft.overflow = true; persist();
+      bubble('Дополнение не поместилось в описание и осталось в переписке. Сократите описание и вручную добавьте важные сведения; затем проверьте его перед отправкой.');
     }
-  });
-  location.addEventListener('change', save);
-  submit.addEventListener('click', createTicket);
-  reset.addEventListener('click', () => { sessionStorage.removeItem(storageKey); window.location.href = '/'; });
-  try {
-    const state = JSON.parse(sessionStorage.getItem(storageKey) || 'null');
-    if (state && Array.isArray(state.transcript) && state.transcript.length <= 100 && typeof state.requestKey === 'string') {
-      messages = Array.isArray(state.messages) ? state.messages : [];
-      draft = state.draft || null;
-      submittedUrl = state.submittedUrl || null;
-      form.elements.request_key.value = state.requestKey;
-      transcript = [];
-      for (const entry of state.transcript) if (typeof entry.text === 'string') say(entry.text, entry.who === 'user' ? 'user' : 'assistant');
-      if (state.room && Array.from(location.options).some(option => option.value === state.room)) location.value = state.room;
-      if (submittedUrl) {
-        const url = new URL(submittedUrl, window.location.origin);
-        if (url.origin === window.location.origin && url.pathname.startsWith('/account/tickets/')) {
-          const link = document.createElement('a'); link.href = url.href; link.className = 'chat-link'; link.textContent = 'Открыть заявку и переписку'; log.appendChild(link);
-          input.disabled = send.disabled = true; reset.hidden = false;
-        }
-      } else if (draft) locationBox.hidden = false;
-      save();
+  }
+  async function sendMessage() {
+    const text = ui.composer.value.trim();
+    if (!text || state.busy || state.submittedUrl) return;
+    if (!state.draft && /(?:сообщ|отправ|переда|администратор|сотрудник)/i.test(text)) {
+      const previous = [...state.transcript].reverse().find(entry => entry.who === 'user' && emergency(entry.text));
+      if (previous) { state.draft = {type:'danger', category:'', draft:previous.text}; showDraft(); }
     }
-  } catch (_) { /* Ignore unavailable or corrupt browser storage. */ }
+    const openDraft = !!state.draft;
+    let matches = [];
+    if (openDraft) {
+      captureDraft();
+      matches = options(ui.room).filter(option => usable(ui.room, option.value) === option && option.text.toLocaleLowerCase('ru-RU') === text.toLocaleLowerCase('ru-RU'));
+      appendDetail(text, matches);
+    } else state.messages.push(text);
+    ui.composer.value = '';
+    bubble(text, 'user'); persist();
+    setBusy(true);
+    try {
+      const combined = openDraft ? text : state.messages.join('\n').slice(-2000);
+      const data = await assess(combined);
+      displayReply(data);
+      if (openDraft) {
+        if (data.type === 'danger') {
+          if (!data.answer) bubble('При непосредственной опасности отойдите в безопасное место и звоните 112.');
+          bubble('Проверьте описание и подтвердите отправку кнопкой.');
+        } else if (matches.length === 1 && usable(ui.room, matches[0].value) === matches[0]) {
+          ui.room.value = matches[0].value;
+          bubble('Место выбрано. Проверьте черновик и подтвердите отправку кнопкой.');
+        } else bubble('Проверьте описание и выберите место из списка. Отправка — только по кнопке.');
+      } else if (data.type === 'danger' || (data.type === 'fault' && data.draft)) {
+        state.draft = data.type === 'danger' ? {type:'danger', category:'', draft:combined} : {type:'fault', category:data.category, draft:data.draft};
+        selectQrRoom(); showDraft();
+        if (!roomOption()) bubble(data.type === 'danger' ? 'Чтобы я направил обращение администратору, выберите место из списка. Пока не подходите к оборудованию.' : 'Где возникла проблема? Выберите корпус и помещение из списка.');
+      } else if (data.type === 'question') state.messages = [];
+    } catch (_) {
+      bubble(openDraft ? 'Не удалось проверить новое сообщение. Если есть непосредственная опасность, отойдите в безопасное место и звоните 112. Черновик сохранён; проверьте его перед отправкой.' : 'Не удалось проверить сообщение. Если есть непосредственная опасность, отойдите в безопасное место и звоните 112. Можно заполнить заявку вручную в форме на этой странице.');
+    } finally { setBusy(false); persist(); }
+  }
+  async function submitDraft() {
+    if (!state.draft || state.busy || state.submittedUrl) return;
+    if (state.draft.overflow) { bubble('Не всё сообщение поместилось в описание. Отредактируйте описание, добавьте важные сведения и проверьте его перед отправкой.'); return; }
+    const room = roomOption();
+    if (!room || !room.dataset || !room.dataset.building) { bubble('Выберите место из списка, чтобы я смог отправить заявку.'); return; }
+    if (!ui.description.value.trim() || !validCategory(ui.category.value)) { bubble('Укажите описание и категорию заявки.'); return; }
+    captureDraft();
+    setBusy(true);
+    const locked = [ui.description, ui.category, ui.room, ui.composer].map(element => [element, element.disabled]);
+    locked.forEach(([element]) => { element.disabled = true; });
+    const body = new FormData(ui.form);
+    body.set('building', room.dataset.building); body.set('room_id', room.value);
+    body.set('category', ui.category.value); body.set('description', ui.description.value); body.delete('photo');
+    bubble('Отправляю заявку сотрудникам…');
+    try {
+      const response = await fetch(ui.form.action || '/', {method:'POST', body, credentials:'same-origin'});
+      const url = ticketUrl(response.url);
+      if (!response.ok || !response.redirected || !url) throw new Error('Не удалось отправить заявку. Проверьте данные и попробуйте ещё раз.');
+      state.submittedUrl = url.href;
+      const number = url.pathname.replace(/\/$/, '').split('/').pop();
+      bubble(`Обращение № ${number} направлено администратору. Статус: новая. После принятия в работу вы увидите ответ и новый статус в профиле.`);
+      showLink(url);
+      state.draft = null; state.messages = []; ui.panel.hidden = true; ui.reset.hidden = false; ui.composer.disabled = true;
+      bubble('Чтобы создать ещё одну заявку, нажмите «Начать новое обращение».');
+    } catch (_) { bubble('Не удалось отправить заявку. Проверьте данные и попробуйте ещё раз.'); }
+    finally { locked.forEach(([element, disabled]) => { element.disabled = element === ui.composer && state.submittedUrl ? true : disabled; }); setBusy(false); persist(); }
+  }
+  ui.send.addEventListener('click', sendMessage);
+  ui.confirm.addEventListener('click', submitDraft);
+  ui.composer.addEventListener('input', persist);
+  ui.composer.addEventListener('keydown', event => {
+    if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault(); ui.send.click(); }
+  });
+  ui.room.addEventListener('change', persist);
+  ui.description.addEventListener('input', () => { if (state.draft) state.draft.overflow = false; captureDraft(); });
+  ui.category.addEventListener('change', () => { if (state.draft) state.draft.categoryChosen = validCategory(ui.category.value); captureDraft(); });
+  ui.reset.addEventListener('click', () => { try { sessionStorage.removeItem(key); } catch (_) {} window.location.href = '/'; });
+  restore();
+  const privacy = document.createElement('p');
+  privacy.textContent = 'Текст и черновик сохраняются в sessionStorage этой вкладки и могут восстановиться после перезапуска браузера. На общем устройстве не вводите конфиденциальные сведения и пароли.';
+  ui.log.appendChild(privacy);
 })();
