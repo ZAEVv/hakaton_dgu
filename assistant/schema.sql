@@ -93,6 +93,29 @@ CREATE TABLE IF NOT EXISTS assistant_requests (
 );
 CREATE INDEX IF NOT EXISTS assistant_requests_applicant_time ON assistant_requests(applicant_id, created_at);
 
+-- Only newly created anonymous tickets receive a tracking credential.
+CREATE TABLE IF NOT EXISTS anonymous_ticket_access (
+    ticket_id INTEGER PRIMARY KEY REFERENCES tickets(id),
+    token_hash TEXT NOT NULL UNIQUE
+);
+CREATE TABLE IF NOT EXISTS anonymous_ticket_pin_access (
+    ticket_id INTEGER PRIMARY KEY REFERENCES tickets(id),
+    token_hash TEXT NOT NULL UNIQUE,
+    credential_hash TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS anonymous_pin_attempts (
+    id INTEGER PRIMARY KEY,
+    ticket_id INTEGER NOT NULL REFERENCES tickets(id),
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS anonymous_pin_attempts_time ON anonymous_pin_attempts(ticket_id, created_at);
+CREATE TABLE IF NOT EXISTS anonymous_assistant_requests (
+    id INTEGER PRIMARY KEY,
+    client_hash TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS anonymous_assistant_client_time ON anonymous_assistant_requests(client_hash, created_at);
+
 CREATE TABLE IF NOT EXISTS login_attempts (
     id INTEGER PRIMARY KEY,
     client_hash TEXT NOT NULL,

@@ -20,7 +20,7 @@
 <button>Найти</button><a href="{{ url_for('admin') }}">Сбросить фильтры</a>
 </form>
 <div class="table-wrap"><table><thead><tr><th>№</th><th>Создана (UTC)</th><th>Заявитель</th><th>Описание</th><th>Помещение</th><th>Категория</th><th>Статус</th><th>Исполнитель</th></tr></thead><tbody>
-{% for x in items %}<tr><td><a href="{{ url_for('admin_ticket', ticket_id=x.id) }}">{{ x.id }}</a></td><td>{{ x.created_at }}</td><td>{% if x.applicant_id %}<a href="{{ url_for('admin_applicant', applicant_id=x.applicant_id) }}">{{ x.last_name }} {{ x.first_name }}</a><br>{{ x.record_book }}{% else %}Без аккаунта (старая){% endif %}</td><td><a href="{{ url_for('admin_ticket', ticket_id=x.id) }}">{{ x.description|truncate(120) }}</a></td><td>{{ x.building }}, {{ x.room }}</td><td>{{ x.category }}</td><td>{{ 'Решена' if x.status == 'Закрыта' else x.status }}</td><td>{{ x.assignee or 'Не назначен' }}</td></tr>
+{% for x in items %}<tr><td><a href="{{ url_for('admin_ticket', ticket_id=x.id) }}">{{ x.id }}</a></td><td>{{ x.created_at }}</td><td>{% if x.applicant_id %}<a href="{{ url_for('admin_applicant', applicant_id=x.applicant_id) }}">{{ x.last_name }} {{ x.first_name }}</a><br>{{ x.record_book }}{% else %}Без аккаунта{% endif %}</td><td><a href="{{ url_for('admin_ticket', ticket_id=x.id) }}">{{ x.description|truncate(120) }}</a></td><td>{{ x.building }}, {{ x.room }}</td><td>{{ x.category }}</td><td>{{ 'Решена' if x.status == 'Закрыта' else x.status }}</td><td>{{ x.assignee or 'Не назначен' }}</td></tr>
 {% else %}<tr><td colspan="8">Заявок не найдено. Попробуйте изменить фильтры.</td></tr>{% endfor %}
 </tbody></table></div>
 {% endblock %}

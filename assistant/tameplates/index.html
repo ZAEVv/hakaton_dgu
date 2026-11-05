@@ -1,7 +1,22 @@
 {% extends 'applicant_base.html' %}
 {% block title %}Новая заявка — Служба колледжа{% endblock %}
-{% block scripts %}<script src="{{ url_for('static', filename='ticket-form.js') }}" defer></script><script src="{{ url_for('static', filename='ai-assistant.js') }}" defer></script>{% endblock %}
+{% block body_class %}chat-page{% endblock %}
+{% block scripts %}<link rel="stylesheet" href="{{ url_for('static', filename='mobile-chat.css') }}"><script src="{{ url_for('static', filename='ticket-form.js') }}" defer></script><script src="{{ url_for('static', filename='ai-assistant.js') }}" defer></script>{% endblock %}
 {% block content %}
+    <header class="mobile-chat-header">
+      <details class="mobile-chat-menu">
+        <summary aria-label="Открыть меню"><svg viewBox="0 0 24 24" width="23" height="23" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 8h16M4 16h16"/></svg></summary>
+        <nav aria-label="Меню заявителя">
+          <a href="{{ url_for('index') }}">Новое обращение</a>
+          {% if current_applicant %}<a href="{{ url_for('account') }}">Мои заявки</a><span>{{ current_applicant.last_name }} {{ current_applicant.first_name }}</span><form method="post" action="{{ url_for('applicant_logout') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button type="submit">Выйти</button></form>
+          {% else %}<a href="{{ url_for('tracking_entry') }}">Отследить заявку</a><a href="{{ url_for('applicant_login') }}">Войти</a><a href="{{ url_for('applicant_register') }}">Регистрация</a>{% endif %}
+          <a href="{{ url_for('login') }}">Вход сотрудника</a>
+          {% include 'theme_switch.html' %}
+        </nav>
+      </details>
+      <div class="mobile-chat-title">Помощник колледжа <span>Заявки и помощь</span></div>
+      <a class="mobile-form-shortcut" href="#manual-form" aria-label="Ручная форма и фото" title="Ручная форма и фото"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></a>
+    </header>
     <div class="page-heading"><h1>Что нужно исправить?</h1>
     <p class="intro">Сообщите о проблеме в колледже. Укажите место и опишите, что случилось.</p>
     </div>
@@ -56,7 +71,7 @@
         <small id="photo-help">JPEG, PNG или WebP до 4 МБ, не более 20 мегапикселей.</small>
       </div>
       <button type="submit" id="submit-ticket" {% if not rooms %}disabled{% endif %}>Отправить заявку</button>
-      <p class="form-note">После отправки заявка появится в вашем личном кабинете.</p>
+      <p class="form-note">{% if current_applicant %}После отправки заявка появится в вашем личном кабинете.{% else %}После сохранения вы получите код отслеживания. Сохраните его и не передавайте посторонним.{% endif %}</p>
     </form>
     </details>
 {% endblock %}

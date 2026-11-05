@@ -2,7 +2,7 @@
 {% block title %}Заявка № {{ item.id }}{% endblock %}
 {% block content %}
 <h1>Заявка № {{ item.id }}</h1>
-<p><strong>Заявитель:</strong> {% if item.applicant_id %}<a href="{{ url_for('admin_applicant', applicant_id=item.applicant_id) }}">{{ item.last_name }} {{ item.first_name }}</a> · Логин {{ item.record_book }}{% else %}Старая заявка без аккаунта{% endif %}</p>
+<p><strong>Заявитель:</strong> {% if item.applicant_id %}<a href="{{ url_for('admin_applicant', applicant_id=item.applicant_id) }}">{{ item.last_name }} {{ item.first_name }}</a> · Логин {{ item.record_book }}{% else %}Без аккаунта{% endif %}</p>
 <p>{{ item.created_at }} UTC · {{ item.building }}, {{ item.room }} · {{ item.category }}</p>
 <p class="ticket-description">{{ item.description }}</p>
 <p><strong>Статус:</strong> {{ 'Решена' if item.status == 'Закрыта' else item.status }}</p>

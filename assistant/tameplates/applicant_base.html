@@ -13,6 +13,8 @@
 <span class="account-person">{{ current_applicant.last_name }} {{ current_applicant.first_name }}</span>
 <form method="post" action="{{ url_for('applicant_logout') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button>Выйти</button></form></nav>
 </div>
+{% else %}
+<div class="account-bar"><nav class="account-nav"><a href="{{ url_for('index') }}">Подать заявку</a><a href="{{ url_for('tracking_entry') }}">Отследить по коду</a><a href="{{ url_for('applicant_login') }}">Войти</a><a href="{{ url_for('applicant_register') }}">Регистрация</a></nav></div>
 {% endif %}
 <main id="main-content" tabindex="-1">
 {% block content %}{% endblock %}

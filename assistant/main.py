@@ -1,5 +1,6 @@
 import os
 import hashlib
+import hmac
 import secrets
 import sqlite3
 import uuid
@@ -7,6 +8,7 @@ import re
 import click
 from io import BytesIO
 from pathlib import Path
+from zipfile import ZipFile, ZIP_DEFLATED
 
 from flask import Flask, abort, g, redirect, render_template, request, url_for, session, send_file, jsonify
 from functools import wraps
@@ -127,11 +129,53 @@ def applicant_required(view):
     return protected
 
 
+def optional_applicant(view):
+    @wraps(view)
+    def protected(*args, **kwargs):
+        if not app.secret_key:
+            abort(503, 'SECRET_KEY не настроен')
+        if request.method == 'POST':
+            db().execute('BEGIN IMMEDIATE')
+        auth_token = session.get('applicant_auth_token', '')
+        applicant = db().execute('''SELECT a.id, a.first_name, a.last_name, a.record_book
+            FROM applicants a JOIN applicant_sessions s ON s.applicant_id=a.id
+            WHERE a.id=? AND s.token_hash=? AND s.created_at >= datetime('now', '-12 hours')''',
+            (session.get('applicant_id'), hashlib.sha256(auth_token.encode()).hexdigest())).fetchone()
+        if applicant:
+            g.applicant = applicant
+        else:
+            session.pop('applicant_id', None)
+            session.pop('applicant_auth_token', None)
+            g.applicant = None
+        return view(*args, **kwargs)
+    return protected
+
+
+def anonymous_code(request_key):
+    # A per-browser random secret makes a guessed request key insufficient.
+    nonce = session.get('anonymous_nonce')
+    if not nonce:
+        nonce = session['anonymous_nonce'] = secrets.token_urlsafe(32)
+    return hmac.new(app.secret_key.encode(), ('tracking:' + nonce + ':' + request_key).encode(), hashlib.sha256).hexdigest()
+
+
+def anonymous_pin(request_key):
+    nonce = session['anonymous_nonce']
+    digest = hmac.new(app.secret_key.encode(), ('tracking-pin:' + nonce + ':' + request_key).encode(), hashlib.sha256).digest()
+    return f'{int.from_bytes(digest, "big") % 1000:03d}'
+
+
+def credential_hash(token, pin):
+    return hmac.new(app.secret_key.encode(), ('tracking-v2:' + token + ':' + pin).encode(), hashlib.sha256).hexdigest()
+
+
 @app.route('/', methods=['GET', 'POST'])
-@applicant_required
+@optional_applicant
 def index():
     if request.method == 'POST':
         check_csrf()
+    elif not g.applicant and 'anonymous_nonce' not in session:
+        session['anonymous_nonce'] = secrets.token_urlsafe(32)
     token = csrf_token()
     rooms = db().execute('SELECT id, building, name FROM rooms ORDER BY building, name').fetchall()
     error = None
@@ -144,8 +188,10 @@ def index():
             match = next((room for room in rooms if str(room['id']) == qr_room), None)
             if match:
                 values = {'building': match['building'], 'room_id': str(match['id'])}
-                qr_notice = 'Место выбрано по QR-коду. При необходимости его можно изменить.'
+                session['pending_qr_room'] = str(match['id'])
+                qr_notice = f"Место выбрано по QR-коду: {match['building']}, {match['name']}. При необходимости его можно изменить."
             else:
+                session.pop('pending_qr_room', None)
                 qr_notice = 'Место из QR-кода не найдено. Выберите корпус и помещение вручную.'
     request_key = values.get('request_key', '')
     if request.method == 'POST':
@@ -161,9 +207,20 @@ def index():
         previous = db().execute('''SELECT t.id, t.applicant_id FROM ticket_access a JOIN tickets t ON t.id=a.ticket_id
                                    WHERE a.request_key=?''', (request_key,)).fetchone() if valid_key else None
         if previous:
-            if previous['applicant_id'] != g.applicant['id']:
-                abort(409, 'Обновите форму и повторите отправку.')
-            return redirect(url_for('account_ticket', ticket_id=previous['id']))
+            if g.applicant and previous['applicant_id'] == g.applicant['id']:
+                return redirect(url_for('account_ticket', ticket_id=previous['id']))
+            if not g.applicant and previous['applicant_id'] is None:
+                code = anonymous_code(request_key)
+                access = db().execute('SELECT token_hash FROM anonymous_ticket_access WHERE ticket_id=?', (previous['id'],)).fetchone()
+                if access and secrets.compare_digest(access['token_hash'], hashlib.sha256(code.encode()).hexdigest()):
+                    session['tracking_code'] = code
+                    return redirect(url_for('tracking_view'))
+                pin = anonymous_pin(request_key)
+                access = db().execute('SELECT credential_hash FROM anonymous_ticket_pin_access WHERE ticket_id=?', (previous['id'],)).fetchone()
+                if access and secrets.compare_digest(access['credential_hash'], credential_hash(code, pin)):
+                    session['tracking_code'] = code + ':' + pin
+                    return redirect(url_for('tracking_view'))
+            abort(409, 'Обновите форму и повторите отправку.')
         if not valid_key or not description or len(description) > 5000 or category not in CATEGORIES or not any(str(r['id']) == room_id and r['building'] == building for r in rooms):
             error = 'Проверьте обязательные поля. Описание должно содержать не более 5000 символов.'
             status_code = 400
@@ -210,13 +267,18 @@ def index():
                 try:
                     connection = db()
                     cursor = connection.execute('INSERT INTO tickets (description, category, room_id, applicant_id) VALUES (?, ?, ?, ?)',
-                                                (description, category, room_id, g.applicant['id']))
+                                                (description, category, room_id, g.applicant['id'] if g.applicant else None))
                     connection.execute(
                         'INSERT INTO ticket_history (ticket_id, applicant_id, change_description, is_public) VALUES (?, ?, ?, 1)',
-                        (cursor.lastrowid, g.applicant['id'], 'Заявка создана заявителем'),
+                        (cursor.lastrowid, g.applicant['id'] if g.applicant else None, 'Заявка создана заявителем'),
                     )
                     token = secrets.token_urlsafe(32)
                     connection.execute('INSERT INTO ticket_access (ticket_id, token, request_key) VALUES (?, ?, ?)', (cursor.lastrowid, token, request_key))
+                    if not g.applicant:
+                        code = anonymous_code(request_key)
+                        pin = anonymous_pin(request_key)
+                        connection.execute('INSERT INTO anonymous_ticket_pin_access (ticket_id, token_hash, credential_hash) VALUES (?, ?, ?)',
+                                           (cursor.lastrowid, hashlib.sha256(code.encode()).hexdigest(), credential_hash(code, pin)))
                     if photo_bytes is not None:
                         folder = Path(app.config['UPLOAD_DIR'])
                         folder.mkdir(parents=True, exist_ok=True)
@@ -226,7 +288,11 @@ def index():
                             file.write(photo_bytes)
                         connection.execute('INSERT INTO attachments (ticket_id, file_path) VALUES (?, ?)', (cursor.lastrowid, str(saved_path)))
                     connection.commit()
-                    return redirect(url_for('account_ticket', ticket_id=cursor.lastrowid))
+                    session.pop('pending_qr_room', None)
+                    if g.applicant:
+                        return redirect(url_for('account_ticket', ticket_id=cursor.lastrowid))
+                    session['tracking_code'] = code + ':' + pin
+                    return redirect(url_for('tracking_view'))
                 except (sqlite3.Error, OSError):
                     db().rollback()
                     if created_file:
@@ -242,7 +308,7 @@ def index():
 
 
 @app.post('/api/assistant')
-@applicant_required
+@optional_applicant
 def assistant_api():
     expected = session.get('csrf_token', '')
     supplied = request.headers.get('X-CSRF-Token', '')
@@ -255,22 +321,33 @@ def assistant_api():
         db().rollback()
         return jsonify(error='Введите сообщение длиной от 1 до 2000 символов.'), 400
     summarize_danger = data.get('summarize_danger') is True
+    room_id = data.get('room_id')
+    room = None
+    if isinstance(room_id, (str, int)) and not isinstance(room_id, bool) and str(room_id).isdigit() and len(str(room_id)) <= 18:
+        room = db().execute('SELECT building, name FROM rooms WHERE id=?', (str(room_id),)).fetchone()
+    location = {'building': room['building'], 'room': room['name']} if room else None
     # Keep the transaction short: never hold a SQLite write lock during the network call.
     if not danger_detected(message) or summarize_danger:
         db().execute("DELETE FROM assistant_requests WHERE created_at < datetime('now', '-1 hour')")
-        count = db().execute("SELECT COUNT(*) FROM assistant_requests WHERE applicant_id=? AND created_at >= datetime('now', '-1 minute')", (g.applicant['id'],)).fetchone()[0]
-        hour_count = db().execute("SELECT COUNT(*) FROM assistant_requests WHERE applicant_id=?", (g.applicant['id'],)).fetchone()[0]
-        global_count = db().execute('SELECT COUNT(*) FROM assistant_requests').fetchone()[0]
+        db().execute("DELETE FROM anonymous_assistant_requests WHERE created_at < datetime('now', '-1 hour')")
+        if g.applicant:
+            table, column, identity = 'assistant_requests', 'applicant_id', g.applicant['id']
+        else:
+            table, column = 'anonymous_assistant_requests', 'client_hash'
+            identity = hmac.new(app.secret_key.encode(), ('assistant-ip:' + (request.remote_addr or 'unknown')).encode(), hashlib.sha256).hexdigest()
+        count = db().execute(f"SELECT COUNT(*) FROM {table} WHERE {column}=? AND created_at >= datetime('now', '-1 minute')", (identity,)).fetchone()[0]
+        hour_count = db().execute(f'SELECT COUNT(*) FROM {table} WHERE {column}=?', (identity,)).fetchone()[0]
+        global_count = db().execute('SELECT (SELECT COUNT(*) FROM assistant_requests) + (SELECT COUNT(*) FROM anonymous_assistant_requests)').fetchone()[0]
         if count >= 10 or hour_count >= 60 or global_count >= 300:
             db().rollback()
             return jsonify(error='Слишком много запросов. Попробуйте позже.'), 429
-        db().execute('INSERT INTO assistant_requests (applicant_id) VALUES (?)', (g.applicant['id'],))
+        db().execute(f'INSERT INTO {table} ({column}) VALUES (?)', (identity,))
     records = [dict(row) for row in db().execute('SELECT id, question, answer, is_verified FROM knowledge_base WHERE is_verified=1 ORDER BY id LIMIT 30')]
     if os.environ.get('DEEPSEEK_DEMO_KNOWLEDGE') == '1':
         records = DEMO_KNOWLEDGE + records
     db().commit()
     try:
-        result = assist(message, records, CATEGORIES, os.environ.get('DEEPSEEK_API_KEY', ''), os.environ.get('DEEPSEEK_MODEL', 'deepseek-flash'), summarize_danger=summarize_danger)
+        result = assist(message, records, CATEGORIES, os.environ.get('DEEPSEEK_API_KEY', ''), os.environ.get('DEEPSEEK_MODEL', 'deepseek-flash'), summarize_danger=summarize_danger, location=location)
         return jsonify(result)
     except ValueError:
         return jsonify(error='Введите сообщение длиной от 1 до 2000 символов.'), 400
@@ -281,6 +358,104 @@ def assistant_api():
 @app.route('/ticket/<token>', methods=['GET', 'POST'])
 def ticket(token):
     return render_template('error.html', message='Доступ по секретным ссылкам отключён. Войдите в личный кабинет. Старые заявки доступны только сотрудникам.'), 410
+
+
+@app.route('/track', methods=['GET', 'POST'])
+def tracking_entry():
+    token = csrf_token()
+    error = None
+    if request.method == 'POST':
+        check_csrf()
+        if not login_attempt_allowed('tracking'):
+            return render_template('tracking_entry.html', csrf_token=token, error='Слишком много попыток. Попробуйте через 10 минут.'), 429
+        code = request.form.get('code', '').strip()
+        link_token = request.form.get('link_token', '').strip()
+        found = False
+        if re.fullmatch(r'[0-9a-f]{64}', link_token) and re.fullmatch(r'[0-9]{3}', code):
+            db().execute('BEGIN IMMEDIATE')
+            db().execute("DELETE FROM anonymous_pin_attempts WHERE created_at < datetime('now', '-24 hours')")
+            access = db().execute('SELECT ticket_id, credential_hash FROM anonymous_ticket_pin_access WHERE token_hash=?',
+                                  (hashlib.sha256(link_token.encode()).hexdigest(),)).fetchone()
+            if access:
+                attempts = db().execute('SELECT COUNT(*) FROM anonymous_pin_attempts WHERE ticket_id=?', (access['ticket_id'],)).fetchone()[0]
+                if attempts >= 3:
+                    db().commit()
+                    return render_template('tracking_entry.html', csrf_token=token, error='Слишком много неверных попыток. Попробуйте через 24 часа.'), 429
+                found = secrets.compare_digest(access['credential_hash'], credential_hash(link_token, code))
+                if found:
+                    db().execute('DELETE FROM anonymous_pin_attempts WHERE ticket_id=?', (access['ticket_id'],))
+                else:
+                    db().execute('INSERT INTO anonymous_pin_attempts (ticket_id) VALUES (?)', (access['ticket_id'],))
+            db().commit()
+            if found:
+                code = link_token + ':' + code
+        elif re.fullmatch(r'[0-9a-f]{64}', code):
+            # Codes issued before the PIN rollout remain valid.
+            found = db().execute('SELECT 1 FROM anonymous_ticket_access WHERE token_hash=?',
+                                 (hashlib.sha256(code.encode()).hexdigest(),)).fetchone()
+        if found:
+            session['tracking_code'] = code
+            return redirect(url_for('tracking_view'))
+        error = 'Ссылка или код неверны. Проверьте их и попробуйте снова.'
+    return render_template('tracking_entry.html', csrf_token=token, error=error), 400 if error else 200
+
+
+def tracked_item():
+    code = session.get('tracking_code', '')
+    if not isinstance(code, str):
+        abort(404)
+    if re.fullmatch(r'[0-9a-f]{64}:[0-9]{3}', code):
+        link_token, pin = code.split(':')
+        return db().execute('''SELECT t.id, t.created_at, t.description, t.category, t.status,
+                                     r.building, r.name AS room
+                              FROM anonymous_ticket_pin_access a JOIN tickets t ON t.id=a.ticket_id
+                              JOIN rooms r ON r.id=t.room_id
+                              WHERE a.token_hash=? AND a.credential_hash=? AND t.applicant_id IS NULL''',
+                            (hashlib.sha256(link_token.encode()).hexdigest(), credential_hash(link_token, pin))).fetchone()
+    if not re.fullmatch(r'[0-9a-f]{64}', code):
+        abort(404)
+    return db().execute('''SELECT t.id, t.created_at, t.description, t.category, t.status,
+                                  r.building, r.name AS room
+                           FROM anonymous_ticket_access a JOIN tickets t ON t.id=a.ticket_id
+                           JOIN rooms r ON r.id=t.room_id
+                           WHERE a.token_hash=? AND t.applicant_id IS NULL''',
+                        (hashlib.sha256(code.encode()).hexdigest(),)).fetchone()
+
+
+@app.route('/track/view', methods=['GET', 'POST'])
+def tracking_view():
+    csrf_token()
+    if request.method == 'POST':
+        db().execute('BEGIN IMMEDIATE')
+        check_csrf()
+    item = tracked_item()
+    if not item:
+        abort(404)
+    error = None
+    if request.method == 'POST':
+        comment = request.form.get('comment', '').strip()
+        if item['status'] in ('Решена', 'Отклонена', 'Закрыта'):
+            abort(409)
+        if not comment or len(comment) > 5000:
+            error = 'Введите ответ длиной от 1 до 5000 символов.'
+        else:
+            db().execute('UPDATE tickets SET version=version+1 WHERE id=?', (item['id'],))
+            db().execute('INSERT INTO ticket_history (ticket_id,change_description,comment,is_public) VALUES (?,?,?,1)',
+                         (item['id'], 'Ответ заявителя', comment))
+            db().commit()
+            return redirect(url_for('tracking_view'))
+    return render_ticket(item, error, anonymous=True)
+
+
+@app.get('/track/attachments/<int:attachment_id>')
+def tracking_attachment(attachment_id):
+    item = tracked_item()
+    if not item:
+        abort(404)
+    attachment = db().execute('SELECT file_path FROM attachments WHERE id=? AND ticket_id=?', (attachment_id, item['id'])).fetchone()
+    if not attachment:
+        abort(404)
+    return attachment_response(attachment['file_path'])
 
 
 @app.get('/account')
@@ -315,13 +490,17 @@ def account_ticket(ticket_id):
                          (item['id'], g.applicant['id'], 'Ответ заявителя', comment))
             db().commit()
             return redirect(url_for('account_ticket', ticket_id=item['id']))
+    return render_ticket(item, error)
+
+
+def render_ticket(item, error, anonymous=False):
     rows = db().execute('''SELECT created_at, change_description, comment, is_public, applicant_id, employee_id
                            FROM ticket_history WHERE ticket_id=? ORDER BY id''', (item['id'],)).fetchall()
     history = []
     valid_statuses = (*STATUSES, 'Закрыта')
     for row in rows:
         if row['is_public']:
-            history.append(dict(date=row['created_at'], change=row['change_description'], comment=row['comment'], author='Вы' if row['applicant_id'] else ('Сотрудник' if row['employee_id'] else 'Система')))
+            history.append(dict(date=row['created_at'], change=row['change_description'], comment=row['comment'], author='Вы' if row['applicant_id'] or (anonymous and row['change_description'] == 'Ответ заявителя' and not row['employee_id']) else ('Сотрудник' if row['employee_id'] else 'Система')))
         else:
             # Internal entries can combine a status change with private details.
             # Only reconstruct recognised status transitions; never expose the entry itself.
@@ -331,8 +510,11 @@ def account_ticket(ticket_id):
                     if transition == f'Статус: {old} → {new}':
                         history.append(dict(date=row['created_at'], change=transition, comment=None, author='Система'))
     attachments = db().execute('SELECT id FROM attachments WHERE ticket_id=?', (item['id'],)).fetchall()
+    tracking_code = session.get('tracking_code', '') if anonymous else ''
+    tracking_token, tracking_pin = tracking_code.split(':') if ':' in tracking_code else (None, None)
     return render_template('created.html', number=item['id'], item=item, history=history, attachments=attachments,
-                           csrf_token=csrf_token(), error=error), 400 if error else 200
+                           csrf_token=csrf_token(), error=error, anonymous=anonymous, tracking_code=tracking_code,
+                           tracking_token=tracking_token, tracking_pin=tracking_pin), 400 if error else 200
 
 
 def revoke_browser_sessions():
@@ -595,6 +777,28 @@ def admin_qr_image(room_id):
     qrcode.make(target).save(result, format='PNG')
     result.seek(0)
     return send_file(result, mimetype='image/png', download_name=f'room-{room_id}.png')
+
+
+@app.get('/admin/qr/all.zip')
+@staff_required
+def admin_qr_archive():
+    require_admin()
+    import qrcode
+    rooms = db().execute('SELECT id, building, name FROM rooms ORDER BY building, name, id').fetchall()
+    result = BytesIO()
+    with ZipFile(result, 'w', ZIP_DEFLATED) as archive:
+        lines = ['Файл — корпус — помещение']
+        for room in rooms:
+            filename = f"room-{room['id']}.png"
+            image = BytesIO()
+            qrcode.make(url_for('index', room=room['id'], _external=True)).save(image, format='PNG')
+            archive.writestr(filename, image.getvalue())
+            building = ' '.join(room['building'].split())
+            name = ' '.join(room['name'].split())
+            lines.append(f'{filename} — {building} — {name}')
+        archive.writestr('rooms.txt', '\n'.join(lines) + '\n')
+    result.seek(0)
+    return send_file(result, mimetype='application/zip', as_attachment=True, download_name='room-qr-codes.zip')
 
 @app.get('/admin/applicants/<int:applicant_id>')
 @staff_required

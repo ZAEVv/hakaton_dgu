@@ -105,11 +105,12 @@ class AccountTests(unittest.TestCase):
         self.assertEqual(self.owner.get('/account').location, '/account/login')
         self.assertEqual(self.other.get('/account').location, '/account/login')
 
-    def test_anonymous_access_requires_login_and_legacy_links_are_disabled(self):
+    def test_account_access_requires_login_and_legacy_links_are_disabled(self):
         client = app.test_client()
-        for path in ('/', '/account', '/account/tickets/1', '/account/attachments/1'):
+        self.assertEqual(client.get('/').status_code, 200)
+        for path in ('/account', '/account/tickets/1', '/account/attachments/1'):
             self.assertEqual(client.get(path).location, '/account/login')
-        self.assertEqual(client.post('/', data={'description': 'Анонимно'}).location, '/account/login')
+        self.assertEqual(client.post('/', data={'description': 'Анонимно'}).status_code, 400)
         for client in (client, self.owner, self.staff):
             self.assertEqual(client.get('/ticket/old-secret').status_code, 410)
             self.assertEqual(client.post('/ticket/old-secret', data={'comment': 'Обход'}).status_code, 410)
